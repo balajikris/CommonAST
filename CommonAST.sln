@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35931.197 d17.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CommonAST", "src\CommonAST.csproj", "{185A3749-4974-4C1C-A0B2-C349D398E583}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CommonAST.Tests", "tests\CommonAST.Tests\CommonAST.Tests.csproj", "{365E46E6-8480-35C0-E032-C0CCC96BA353}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{185A3749-4974-4C1C-A0B2-C349D398E583}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{185A3749-4974-4C1C-A0B2-C349D398E583}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{185A3749-4974-4C1C-A0B2-C349D398E583}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{185A3749-4974-4C1C-A0B2-C349D398E583}.Release|Any CPU.Build.0 = Release|Any CPU
+		{365E46E6-8480-35C0-E032-C0CCC96BA353}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{365E46E6-8480-35C0-E032-C0CCC96BA353}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{365E46E6-8480-35C0-E032-C0CCC96BA353}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{365E46E6-8480-35C0-E032-C0CCC96BA353}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0C8B312E-64F7-421A-B476-881B13A02ACA}
+	EndGlobalSection
+EndGlobal
