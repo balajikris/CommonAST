@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CommonAST": {
+      "commandName": "Project",
+      "commandLineArgs": "\"T | where trace.duration > 1s $$ << Logs | where span.service == 'gateway' $$ Logs | where span.service == 'backend' >>\" --multi"
+    }
+  }
+}

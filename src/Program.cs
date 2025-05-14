@@ -5,12 +5,12 @@ using Kusto.Language.Editor;
 using Kusto.Language.Syntax;
 
 public class KQLParse
-{
-    public static void Main(string[] args)
+{    public static void Main(string[] args)
     {
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: CommonAST.exe <KQLQuery> [--output <outputPath>]");
+            Console.WriteLine("Usage: CommonAST.exe <KQLQuery> [--output <outputPath>] [--multi]");
+            Console.WriteLine("  --multi   Treat input as multiple queries separated by $$ with span filters in []");
             return;
         }
 
@@ -20,6 +20,9 @@ public class KQLParse
         // Default output path
         var outputPath = "syntax_tree.dot";
         var commonAstOutputPath = "common_ast.dot";
+        
+        // Default to standard parsing
+        bool useMultiQueryParser = false;
 
         // Parse additional switches
         for (int i = 1; i < args.Length; i++)
@@ -31,6 +34,10 @@ public class KQLParse
                 commonAstOutputPath = Path.ChangeExtension(outputPath, null) + "_common_ast.dot";
                 i++; // Skip the next argument as it's the value for --output
             }
+            else if (args[i] == "--multi")
+            {
+                useMultiQueryParser = true;
+            }
             else
             {
                 Console.WriteLine($"Unknown argument: {args[i]}");
@@ -38,37 +45,56 @@ public class KQLParse
             }
         }
 
-        // Parse the KQL query
-        var code = KustoCode.Parse(query);
-
-        // Check if the query was successfully parsed or has syntax errors
-        var diagnostics = code.GetSyntaxDiagnostics();
-        if (diagnostics.Count > 0)
+        QueryNode commonAst;
+        
+        if (useMultiQueryParser)
         {
-            Console.WriteLine("Syntax errors found:");
-            foreach (var diagnostic in diagnostics)
+            try
             {
-                Console.WriteLine($"- {diagnostic.Message} (at position {diagnostic.Start})");
+                // Parse the input as multiple queries with $$ separators
+                commonAst = MultiQueryParser.Parse(query);
+                Console.WriteLine("Parsed and combined multiple KQL queries successfully");
             }
-            return;
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error parsing multi-query input: {ex.Message}");
+                return;
+            }
+            
+            // No need to generate KQL syntax tree for the multi-query case
         }
-
-        // Generate Graphviz output for the syntax tree
-        using (var writer = new StreamWriter(outputPath))
+        else 
         {
-            writer.WriteLine("digraph syntax_tree {");
-            GenerateGraphvizForKQLParseTree(code.Syntax, writer);
-            writer.WriteLine("}");
-        }
-        Console.WriteLine($"Graphviz output saved to {outputPath}");
+            // Standard single query parsing
+            var code = KustoCode.Parse(query);
 
-        // Convert to CommonAST using the KqlToCommonAstVisitor
-        var visitor = new KqlToCommonAstVisitor();
-        visitor.Visit(code.Syntax);
-        var commonAst = visitor.RootNode;
-        Console.WriteLine("Converted KQL to CommonAST successfully");
+            // Check if the query was successfully parsed or has syntax errors
+            var diagnostics = code.GetSyntaxDiagnostics();
+            if (diagnostics.Count > 0)
+            {
+                Console.WriteLine("Syntax errors found:");
+                foreach (var diagnostic in diagnostics)
+                {
+                    Console.WriteLine($"- {diagnostic.Message} (at position {diagnostic.Start})");
+                }
+                return;
+            }
 
-        // Generate Graphviz output for the CommonAST
+            // Generate Graphviz output for the syntax tree
+            using (var writer = new StreamWriter(outputPath))
+            {
+                writer.WriteLine("digraph syntax_tree {");
+                GenerateGraphvizForKQLParseTree(code.Syntax, writer);
+                writer.WriteLine("}");
+            }
+            Console.WriteLine($"Graphviz output saved to {outputPath}");
+
+            // Convert to CommonAST using the KqlToCommonAstVisitor
+            var visitor = new KqlToCommonAstVisitor();
+            visitor.Visit(code.Syntax);
+            commonAst = visitor.RootNode;
+            Console.WriteLine("Converted KQL to CommonAST successfully");
+        }        // Generate Graphviz output for the CommonAST
         using (var writer = new StreamWriter(commonAstOutputPath))
         {
             writer.WriteLine("digraph common_ast {");
@@ -101,7 +127,7 @@ public class KQLParse
         }
     }
 
-    static void GenerateGraphvizForCommonAST(ASTNode node, StreamWriter writer, string parent = null)
+    static void GenerateGraphvizForCommonAST(ASTNode node, StreamWriter writer, string? parent = null)
     {
         if (node == null)
             return;
