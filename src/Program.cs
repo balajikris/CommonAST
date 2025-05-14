@@ -5,7 +5,8 @@ using Kusto.Language.Editor;
 using Kusto.Language.Syntax;
 
 public class KQLParse
-{    public static void Main(string[] args)
+{
+    public static void Main(string[] args)
     {
         if (args.Length == 0)
         {
@@ -20,7 +21,7 @@ public class KQLParse
         // Default output path
         var outputPath = "syntax_tree.dot";
         var commonAstOutputPath = "common_ast.dot";
-        
+
         // Default to standard parsing
         bool useMultiQueryParser = false;
 
@@ -46,7 +47,7 @@ public class KQLParse
         }
 
         QueryNode commonAst;
-        
+
         if (useMultiQueryParser)
         {
             try
@@ -60,10 +61,10 @@ public class KQLParse
                 Console.WriteLine($"Error parsing multi-query input: {ex.Message}");
                 return;
             }
-            
+
             // No need to generate KQL syntax tree for the multi-query case
         }
-        else 
+        else
         {
             // Standard single query parsing
             var code = KustoCode.Parse(query);
