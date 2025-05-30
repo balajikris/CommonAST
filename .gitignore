@@ -46,6 +46,9 @@ publish/
 # Ignore TraceQLParser folder
 TraceQLParser/
 
+# Ignore test data
+tests/TestData/
+
 # Others
 _ReSharper*/
 *.resharper
