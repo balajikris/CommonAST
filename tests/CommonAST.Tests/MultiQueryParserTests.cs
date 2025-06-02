@@ -127,13 +127,11 @@ namespace CommonAST.Tests
             var filterNode = (FilterNode)queryNode.Operations[0];
             Assert.IsNotNull(filterNode.TraceExpression);
             Assert.IsNotNull(filterNode.SpanFilter);
-        }
-
-        [TestMethod]
+        }        [TestMethod]
         public void Demo3_MultipleSpanFiltersWithComplexConditions_ShowcasesAdvancedFiltering()
         {
             // Arrange - Multiple span filters with different conditions
-            string input = "T | where trace.status == 'success' $$ << L | where span.service == 'auth' and span.http_status_code >= 200 and span.http_status_code < 300 $$ L | where span.service == 'payment' and span.tags['transaction.amount'] > 1000 $$ L | where span.name matches 'process.*request' >>";
+            string input = "T | where trace.status == 'success' $$ << L | where span.service == 'auth' and span.http_status_code >= 200 and span.http_status_code < 300 $$ L | where span.service == 'payment' and span.tags['transaction.amount'] > 1000 $$ L | where span.name matches regex 'process.*request' >>";
 
             // Act
             var queryNode = MultiQueryParser.Parse(input);
