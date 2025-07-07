@@ -1,0 +1,291 @@
+# System Patterns
+
+## Overall Architecture
+
+### Layered Architecture
+The system follows a clean layered architecture:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CLI Interface Layer                       │
+│                      (Program.cs)                           │
+├─────────────────────────────────────────────────────────────┤
+│                    Processing Layer                          │
+│           (KqlToCommonAstVisitor, MultiQueryParser)         │
+├─────────────────────────────────────────────────────────────┤
+│                    AST Model Layer                           │
+│         (CommonAST.cs - Nodes, Builders, Examples)          │
+├─────────────────────────────────────────────────────────────┤
+│                    Parser Integration Layer                   │
+│    (Microsoft.Azure.Kusto.Language, TraceQL Grammar)        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Component Relationships
+- **CLI → Processing**: Program.cs orchestrates parsing and conversion
+- **Processing → AST Model**: Visitors create AST nodes using builders
+- **Processing → Parser Integration**: Leverages external parsers for language-specific parsing
+- **AST Model → Visualization**: Generates Graphviz output from AST structure
+
+## Key Design Patterns
+
+### 1. Abstract Syntax Tree (AST) Pattern
+**Purpose**: Represent parsed queries in a language-agnostic tree structure
+
+**Implementation**:
+```csharp
+// Base abstraction
+public abstract class ASTNode
+{
+    public abstract NodeKind NodeKind { get; }
+}
+
+// Specialized nodes
+public class QueryNode : ASTNode
+public class FilterNode : OperationNode
+public class BinaryExpression : Expression
+```
+
+**Benefits**:
+- Unified representation across languages
+- Easy traversal and transformation
+- Extensible for new node types
+
+### 2. Visitor Pattern
+**Purpose**: Traverse and transform AST structures without modifying node classes
+
+**Implementation**:
+```csharp
+public class KqlToCommonAstVisitor
+{
+    public void Visit(SyntaxNode node)
+    {
+        // Language-specific traversal logic
+        switch (node.Kind)
+        {
+            case SyntaxKind.WhereOperator:
+                VisitWhereOperator(node);
+                break;
+            // ... other cases
+        }
+    }
+}
+```
+
+**Benefits**:
+- Separation of concerns
+- Easy to add new transformations
+- Doesn't pollute AST node classes
+
+### 3. Builder Pattern
+**Purpose**: Provide consistent, fluent interface for AST construction
+
+**Implementation**:
+```csharp
+public static class AstBuilder
+{
+    public static QueryNode CreateQuery(string? source = null)
+    public static FilterNode CreateFilter(Expression expression, string? keyword = null)
+    public static BinaryExpression CreateBinaryExpression(Expression left, BinaryOperatorKind op, Expression right)
+}
+```
+
+**Benefits**:
+- Consistent object creation
+- Reduces complexity
+- Centralizes validation logic
+
+### 4. Factory Pattern
+**Purpose**: Create appropriate parsers and converters based on input type
+
+**Implementation**:
+```csharp
+// Multi-query parsing factory logic
+if (useMultiQueryParser)
+{
+    commonAst = MultiQueryParser.Parse(query);
+}
+else
+{
+    var code = KustoCode.Parse(query);
+    var visitor = new KqlToCommonAstVisitor();
+    // ...
+}
+```
+
+**Benefits**:
+- Encapsulates creation logic
+- Easy to add new language support
+- Centralized parser selection
+
+### 5. Strategy Pattern
+**Purpose**: Support different parsing strategies for different query languages
+
+**Implementation**:
+- KQL Strategy: Use Microsoft.Azure.Kusto.Language
+- TraceQL Strategy: Custom YACC-based parser
+- Multi-Query Strategy: Combined parsing with span filters
+
+**Benefits**:
+- Pluggable parsing approaches
+- Easy to add new languages
+- Isolated parsing logic
+
+## Critical Implementation Paths
+
+### 1. Single Query Processing Path
+```
+Input Query → KustoCode.Parse() → SyntaxNode Tree → 
+KqlToCommonAstVisitor → Common AST → Graphviz Generation
+```
+
+**Key Components**:
+- `KustoCode.Parse()`: Microsoft's KQL parser
+- `KqlToCommonAstVisitor`: Custom visitor for AST conversion
+- `GenerateGraphvizForCommonAST()`: Visualization generation
+
+### 2. Multi-Query Processing Path
+```
+Multi-Query Input → MultiQueryParser.Parse() → 
+Combined AST with Span Filters → Graphviz Generation
+```
+
+**Key Components**:
+- `MultiQueryParser`: Custom parser for $$ separator and [] span filters
+- Span filter parsing and AST integration
+- Combined AST generation
+
+### 3. AST Construction Path
+```
+Raw Syntax Elements → AstBuilder Factory Methods → 
+Typed AST Nodes → Validation → Final AST Structure
+```
+
+**Key Components**:
+- `AstBuilder` factory methods
+- Node validation logic
+- Type-safe AST construction
+
+## Component Interaction Patterns
+
+### 1. CLI Orchestration Pattern
+The CLI acts as the main orchestrator:
+
+```csharp
+public static void Main(string[] args)
+{
+    // 1. Parse command line arguments
+    // 2. Select appropriate parsing strategy
+    // 3. Execute parsing and conversion
+    // 4. Generate outputs
+    // 5. Handle errors and provide feedback
+}
+```
+
+### 2. Visitor Traversal Pattern
+Systematic traversal of syntax trees:
+
+```csharp
+// Top-down traversal
+public void Visit(SyntaxNode node)
+{
+    // 1. Handle current node
+    // 2. Process children recursively
+    // 3. Build AST bottom-up
+}
+```
+
+### 3. Builder Composition Pattern
+Compositional AST construction:
+
+```csharp
+// Build complex expressions from simple parts
+var leftExpr = AstBuilder.CreateBinaryExpression(/*...*/);
+var rightExpr = AstBuilder.CreateBinaryExpression(/*...*/);
+var combined = AstBuilder.CreateBinaryExpression(leftExpr, BinaryOperatorKind.And, rightExpr);
+```
+
+## Architectural Decisions
+
+### 1. Unified AST Over Multiple ASTs
+**Decision**: Use single AST structure for all query languages
+**Rationale**: Enables cross-language analysis and tool building
+**Trade-off**: Some language-specific nuances may be lost
+
+### 2. Dual Filtering Architecture
+**Decision**: Support both trace-level and span-level filtering
+**Rationale**: Matches TraceQL semantics while maintaining KQL compatibility
+**Implementation**: FilterNode with TraceExpression and SpanFilter properties
+
+### 3. Builder Pattern for Construction
+**Decision**: Use static factory methods rather than constructors
+**Rationale**: Provides consistent interface and validation
+**Benefit**: Reduces complexity and improves maintainability
+
+### 4. Visitor Pattern for Transformation
+**Decision**: Use visitor pattern for syntax tree transformation
+**Rationale**: Keeps transformation logic separate from AST structure
+**Benefit**: Easy to add new transformations without modifying nodes
+
+### 5. External Parser Integration
+**Decision**: Use Microsoft.Azure.Kusto.Language for KQL parsing
+**Rationale**: Leverages official, well-tested parser
+**Benefit**: Reduces implementation complexity and improves reliability
+
+## Extension Points
+
+### 1. New Query Language Support
+- Add new visitor class (e.g., `SparkSqlToCommonAstVisitor`)
+- Implement parser integration
+- Add factory logic for language detection
+- Update CLI to support new format
+
+### 2. New AST Node Types
+- Add NodeKind enum value
+- Create new class inheriting from appropriate base
+- Add factory methods to AstBuilder
+- Update visitor implementations
+- Add Graphviz generation support
+
+### 3. New Operation Types
+- Create new class inheriting from OperationNode
+- Add to query pipeline processing
+- Update visualization generation
+- Add comprehensive tests
+
+### 4. New Expression Types
+- Create new class inheriting from Expression
+- Add to expression processing logic
+- Update all visitor implementations
+- Add builder factory methods
+
+## Quality Patterns
+
+### 1. Test Organization Pattern
+Tests are organized by functional area:
+- Basic Node Creation Tests
+- Filter Node Tests
+- Span Filter Tests
+- Advanced Expression Types
+- Example Tests
+
+### 2. Documentation Pattern
+All public members have XML documentation:
+```csharp
+/// <summary>
+/// Creates a binary expression with left operand, operator, and right operand
+/// </summary>
+/// <param name="left">Left operand expression</param>
+/// <param name="op">Binary operator</param>
+/// <param name="right">Right operand expression</param>
+/// <returns>Binary expression AST node</returns>
+public static BinaryExpression CreateBinaryExpression(Expression left, BinaryOperatorKind op, Expression right)
+```
+
+### 3. Error Handling Pattern
+Consistent error handling across components:
+- Parse errors from KustoCode diagnostics
+- Validation errors from AST construction
+- Clear error messages with actionable guidance
+
+This architecture provides a solid foundation for cross-language query processing while maintaining extensibility for future enhancements.
