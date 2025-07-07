@@ -25,7 +25,8 @@ The system follows a clean layered architecture:
 - **CLI → Processing**: Program.cs orchestrates parsing and conversion
 - **Processing → AST Model**: Visitors create AST nodes using builders
 - **Processing → Parser Integration**: Leverages external parsers for language-specific parsing
-- **AST Model → Visualization**: Generates Graphviz output from AST structure
+- **AST Model → Visualization**: Generates Graphviz DOT files for developer diagnosis
+- **AST Model → Expression Evaluation Engine**: Provides engine-agnostic AST for Arrow data operations
 
 ## Key Design Patterns
 
@@ -232,6 +233,39 @@ var combined = AstBuilder.CreateBinaryExpression(leftExpr, BinaryOperatorKind.An
 **Rationale**: Leverages official, well-tested parser
 **Benefit**: Reduces implementation complexity and improves reliability
 
+## Critical Design Considerations
+
+### Grammar-Driven AST Design
+**CRITICAL**: When adding support for new language constructs (e.g., project operations), the process must be:
+
+1. **Grammar Analysis**: Examine both KQL and TraceQL grammar files
+   - `src/Grammar/KQL.Grammar/Kql.g4` and `KqlTokens.g4`
+   - `src/Grammar/TraceQL.Grammar/traceql.yacc` and `traceqltokens.js`
+   
+2. **Cross-Language Mapping**: Identify equivalent constructs between languages
+   - Find common data processing operations
+   - Identify language-specific variations
+   - Determine what can be unified in AST
+
+3. **Engine-Agnostic Filter**: Exclude engine-specific constructs
+   - **Exclude**: Kusto engine-specific operations that don't apply to data processing
+   - **Include**: Data processing operations (filter, project, aggregate, etc.)
+   - **Focus**: Operations that can execute on Arrow data via Expression Evaluation engine
+
+4. **AST Structure Design**: Create unified representation
+   - Design AST nodes that accommodate both languages
+   - Ensure compatibility with Arrow data operations
+   - Plan for Expression Evaluation engine execution
+
+### Engine-Specific Exclusion Pattern
+**Rule**: Any language construct that applies only to a specific query engine (e.g., Kusto engine) must be excluded from the Common AST.
+
+**Examples of Exclusions**:
+- Kusto-specific administrative commands
+- Engine-specific optimization hints
+- Platform-specific data source references
+- Engine-specific functions not applicable to Arrow data
+
 ## Extension Points
 
 ### 1. New Query Language Support
@@ -240,12 +274,15 @@ var combined = AstBuilder.CreateBinaryExpression(leftExpr, BinaryOperatorKind.An
 - Add factory logic for language detection
 - Update CLI to support new format
 
-### 2. New AST Node Types
-- Add NodeKind enum value
-- Create new class inheriting from appropriate base
-- Add factory methods to AstBuilder
-- Update visitor implementations
-- Add Graphviz generation support
+### 2. New AST Node Types (Grammar-Driven Process)
+- **Step 1**: Analyze grammar files for both KQL and TraceQL
+- **Step 2**: Identify common data processing patterns
+- **Step 3**: Design engine-agnostic AST representation
+- **Step 4**: Add NodeKind enum value
+- **Step 5**: Create new class inheriting from appropriate base
+- **Step 6**: Add factory methods to AstBuilder
+- **Step 7**: Update visitor implementations
+- **Step 8**: Add Graphviz generation support
 
 ### 3. New Operation Types
 - Create new class inheriting from OperationNode

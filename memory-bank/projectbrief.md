@@ -7,29 +7,30 @@
 - **Domain**: Query Language Processing & AST Transformation
 
 ## Core Purpose
-Convert query languages (KQL and TraceQL) into a unified Common AST format to enable cross-language query analysis, transformation, and visualization for distributed tracing and log analytics.
+Convert query languages (KQL and TraceQL) into a unified Common AST format that serves as the frontend for an Expression Evaluation (EE) engine. The EE engine executes AST operations on Arrow data in-memory, fetching parquet files from ADLS (Azure Data Lake Storage) as needed.
 
 ## Primary Goals
-1. **Unified Representation**: Create a single AST structure that can represent constructs from both KQL and TraceQL
-2. **Cross-Language Analysis**: Enable analysis and transformation of queries across different query languages
-3. **Visualization**: Generate visual representations of both original syntax trees and Common AST
-4. **Extensibility**: Design architecture that can accommodate additional query languages in the future
+1. **Engine-Agnostic AST**: Create AST structure that represents only data processing operations, excluding engine-specific constructs
+2. **Expression Evaluation Support**: Generate AST optimized for execution on Arrow data in-memory via Expression Evaluation (EE) engine
+3. **Cross-Language Compatibility**: Enable seamless translation between KQL and TraceQL for equivalent data operations
+4. **Grammar-Driven Design**: Base new language construct support on careful analysis of grammar files to ensure proper AST representation
 
 ## Target Users
-- **Primary**: Developers working with distributed tracing systems
-- **Secondary**: Data engineers analyzing log queries
-- **Tertiary**: Query language researchers and tool builders
+- **Primary**: Expression Evaluation (EE) engine that executes AST operations on Arrow data
+- **Secondary**: Developers building data processing systems on top of the EE engine
+- **Tertiary**: Query language researchers working with cross-language AST representations
 
 ## Key Requirements
 
 ### Functional Requirements
-- Parse KQL queries using Microsoft.Azure.Kusto.Language
-- Parse TraceQL queries (custom implementation)
-- Convert both to unified Common AST format
+- Parse KQL queries using Microsoft.Azure.Kusto.Language, excluding engine-specific constructs
+- Parse TraceQL queries (custom implementation) for data processing operations
+- Convert both to unified Common AST format suitable for Expression Evaluation engine
 - Support multi-query parsing with `$$` separators
 - Handle span filters with `[]` syntax
-- Generate Graphviz visualizations
-- Provide CLI interface for processing queries
+- Generate Graphviz DOT files for developer diagnosis and AST structure understanding
+- Provide CLI interface for processing queries and generating AST
+- Generate AST compatible with Arrow data operations and ADLS parquet file access
 
 ### Technical Requirements
 - Target .NET 8.0 framework

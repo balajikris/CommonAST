@@ -2,14 +2,15 @@
 
 ## Project Overview
 
-This is a C# .NET 8.0 console application that converts query languages (KQL and TraceQL) into a unified Common AST format. The project enables cross-language query analysis and transformation for distributed tracing and log analytics.
+This is a C# .NET 8.0 console application that converts query languages (KQL and TraceQL) into a unified Common AST format that serves as the frontend for an Expression Evaluation (EE) engine. The EE engine executes AST operations on Arrow data in-memory, fetching parquet files from ADLS (Azure Data Lake Storage) as needed.
 
 ### Key Capabilities
 - **KQL Parser**: Converts Kusto Query Language to Common AST using Microsoft.Azure.Kusto.Language
 - **TraceQL Integration**: Planned support for TraceQL (distributed tracing queries)
 - **Multi-Query Support**: Handles multiple queries separated by `$$` with span filters in `[]`
-- **Graphviz Output**: Generates visual representations of both original syntax trees and Common AST
+- **Developer Diagnostics**: Generates Graphviz DOT files for developer understanding of AST structure
 - **Dual Filtering**: Supports both trace-level and span-level filtering for distributed tracing scenarios
+- **Expression Evaluation Backend**: AST serves as frontend for EE engine that executes on Arrow data from ADLS
 
 ## Architecture Guidelines
 
@@ -195,22 +196,65 @@ Use realistic query examples:
 - All literal types (String, Integer, Float, Boolean, Null, Duration, DateTime, Guid)
 - Special operators (IN, BETWEEN, CONTAINS)
 
+## Critical Design Requirements
+
+### Grammar-Driven Development
+**CRITICAL**: When adding support for new language constructs (e.g., project operations), you MUST follow this process:
+
+1. **Grammar Analysis**: Examine both KQL and TraceQL grammar files
+   - `src/Grammar/KQL.Grammar/Kql.g4` and `KqlTokens.g4`
+   - `src/Grammar/TraceQL.Grammar/traceql.yacc` and `traceqltokens.js`
+
+2. **Cross-Language Mapping**: Identify equivalent constructs between languages
+   - Find common data processing operations
+   - Identify language-specific variations
+   - Determine what can be unified in AST
+
+3. **Engine-Agnostic Filter**: Exclude engine-specific constructs
+   - **EXCLUDE**: Kusto engine-specific operations (administrative commands, optimization hints)
+   - **INCLUDE**: Data processing operations (filter, project, aggregate, etc.)
+   - **FOCUS**: Operations that can execute on Arrow data via Expression Evaluation engine
+
+4. **AST Structure Design**: Create unified representation
+   - Design AST nodes that accommodate both languages
+   - Ensure compatibility with Arrow data operations
+   - Plan for Expression Evaluation engine execution
+
+### Expression Evaluation Engine Compatibility
+The Common AST must be designed for execution by the Expression Evaluation (EE) engine:
+- **Arrow Data**: Operations must work with Arrow data structures
+- **ADLS Integration**: Support parquet file access from Azure Data Lake Storage
+- **In-Memory Processing**: Optimize for in-memory record batch operations
+- **Engine Independence**: No dependency on specific query engines (e.g., Kusto)
+
+### Graphviz Purpose
+**Important**: Graphviz DOT file generation is solely for developer diagnosis and understanding of AST structure during development. It is NOT for end-user visualization or production use.
+
 ## Common Development Tasks
 
-### Adding New AST Node Types
-1. Add new `NodeKind` enum value
-2. Create new class inheriting from appropriate base (ASTNode, Expression, OperationNode)
-3. Add factory method to `AstBuilder`
-4. Update visitor implementations
-5. Add comprehensive tests
-6. Update Graphviz generation if needed
+### Adding New AST Node Types (Grammar-Driven Process)
+**CRITICAL**: Must follow grammar analysis process above before implementing:
 
-### Implementing New Query Operations
-1. Create new class inheriting from `OperationNode`
-2. Add to `GenerateGraphvizForCommonAST` switch statement
-3. Add factory method to `AstBuilder`
-4. Add parser integration
-5. Create comprehensive tests with examples
+1. **Grammar Analysis**: Examine both KQL and TraceQL grammar files first
+2. **Engine-Agnostic Design**: Ensure compatibility with Expression Evaluation engine
+3. Add new `NodeKind` enum value
+4. Create new class inheriting from appropriate base (ASTNode, Expression, OperationNode)
+5. Add factory method to `AstBuilder`
+6. Update visitor implementations
+7. Add comprehensive tests
+8. Update Graphviz generation for developer diagnosis
+
+### Implementing New Query Operations (Grammar-Driven Process)
+**CRITICAL**: Must follow grammar analysis process above before implementing:
+
+1. **Grammar Analysis**: Examine both language grammars for the operation
+2. **Cross-Language Mapping**: Identify how operation works in both languages
+3. **Engine-Agnostic Design**: Ensure operation can execute on Arrow data
+4. Create new class inheriting from `OperationNode`
+5. Add to `GenerateGraphvizForCommonAST` switch statement
+6. Add factory method to `AstBuilder`
+7. Add parser integration
+8. Create comprehensive tests with examples
 
 ### Extending Parser Support
 1. Update grammar files in `Grammar/` directory
