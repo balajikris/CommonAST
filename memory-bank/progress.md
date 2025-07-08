@@ -104,11 +104,11 @@
   - Error handling and validation
   - Graphviz output generation
 
-### Extended Query Operations 📋
-- **Project Operations**: Select/project functionality
-  - Column selection and aliasing
-  - Expression projection
-  - AST representation and processing
+### Extended Query Operations ✅
+- **Project Operations**: Select/project functionality ✅
+  - Column selection and aliasing ✅
+  - Expression projection ✅
+  - AST representation and processing ✅
 
 - **Summarize Operations**: Aggregation functionality
   - Group by operations
