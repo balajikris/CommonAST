@@ -109,6 +109,7 @@
   - Column selection and aliasing ✅
   - Expression projection ✅
   - AST representation and processing ✅
+  - KQL Visitor Support ✅
 
 - **Summarize Operations**: Aggregation functionality
   - Group by operations
