@@ -193,11 +193,17 @@ public class ProjectionExpression : ASTNode
     public string? Alias { get; set; }
     
     /// <summary>
-    /// Optional result type of this projection expression
-    /// Required ONLY for calculated fields and function calls where type changes
-    /// Simple field selections and renames don't need this - EE engine can infer from schema
+    /// Internal declared type determined during AST construction
+    /// Users should call GetResultType() instead of accessing this directly
     /// </summary>
-    public ExpressionType? ResultType { get; set; }
+    internal ExpressionType? DeclaredType { get; set; }
+    
+    /// <summary>
+    /// Gets the effective type of this projection, considering both declared and semantic analysis
+    /// Returns resolved type from semantic analysis if available, otherwise returns declared type
+    /// Returns Unknown if no type information is available (simple field projections)
+    /// </summary>
+    public ExpressionType GetResultType() => DeclaredType ?? ExpressionType.Unknown;
 }
 
 /// <summary>
@@ -253,6 +259,7 @@ public enum LiteralKind
 /// </summary>
 public enum ExpressionType
 {
+    Unknown,    // Type cannot be determined at syntax analysis time - requires semantic analysis
     String,
     Integer,
     Float,
@@ -533,29 +540,30 @@ public static class AstBuilder
     }
 
     /// <summary>
-    /// Creates a ProjectionExpression with optional alias and type
-    /// Type should only be specified for calculated fields/function calls
+    /// Creates a ProjectionExpression with optional alias and declared type
+    /// Defaults to null - semantic analysis will resolve actual types
     /// </summary>
-    public static ProjectionExpression CreateProjection(Expression expression, string? alias = null, ExpressionType? resultType = null)
+    public static ProjectionExpression CreateProjection(Expression expression, string? alias = null, ExpressionType? declaredType = null)
     {
         return new ProjectionExpression
         {
             Expression = expression,
             Alias = alias,
-            ResultType = resultType
+            DeclaredType = declaredType
         };
     }
 
     /// <summary>
     /// Convenience method for simple field projection with alias
+    /// Defaults to null type - semantic analysis will resolve from schema
     /// </summary>
-    public static ProjectionExpression CreateFieldProjection(string fieldName, string? alias = null, ExpressionType? resultType = null, string? ns = null)
+    public static ProjectionExpression CreateFieldProjection(string fieldName, string? alias = null, ExpressionType? declaredType = null, string? ns = null)
     {
         return new ProjectionExpression
         {
             Expression = CreateIdentifier(fieldName, ns),
             Alias = alias,
-            ResultType = resultType
+            DeclaredType = declaredType
         };
     }
 }
@@ -740,7 +748,7 @@ public static class Examples
                     AstBuilder.CreateLiteral(1000, LiteralKind.Integer)
                 ),
                 alias: "duration_ms",
-                resultType: ExpressionType.Float
+                declaredType: ExpressionType.Float
             ),
             
             // Function call: upper_name = toupper(name)
@@ -750,7 +758,7 @@ public static class Examples
                     AstBuilder.CreateIdentifier("name")
                 }),
                 alias: "upper_name",
-                resultType: ExpressionType.String
+                declaredType: ExpressionType.String
             )
         };
         
@@ -813,7 +821,7 @@ public static class Examples
                     AstBuilder.CreateLiteral("fast", LiteralKind.String)
                 }),
                 alias: "category",
-                resultType: ExpressionType.String
+                declaredType: ExpressionType.String
             )
         };
         var projectNode = AstBuilder.CreateProject(projections, "project");

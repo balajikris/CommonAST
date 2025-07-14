@@ -189,8 +189,8 @@ public class KQLParse
             case ProjectionExpression projExpr:
                 if (!string.IsNullOrEmpty(projExpr.Alias))
                     label += $"\\nAlias: {projExpr.Alias}";
-                if (projExpr.ResultType.HasValue)
-                    label += $"\\nResultType: {projExpr.ResultType}";
+                if (projExpr.GetResultType() != ExpressionType.Unknown)
+                    label += $"\\nResultType: {projExpr.GetResultType()}";
                 break;
         }
 
