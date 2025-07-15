@@ -179,6 +179,19 @@ public class KQLParse
             case SpecialOperatorExpression specOpExpr:
                 label += $"\\nOperator: {specOpExpr.Operator}";
                 break;
+
+            case ProjectNode projectNode:
+                if (!string.IsNullOrEmpty(projectNode.Keyword))
+                    label += $"\\nKeyword: {projectNode.Keyword}";
+                label += $"\\nProjections: {projectNode.Projections.Count}";
+                break;
+
+            case ProjectionExpression projExpr:
+                if (!string.IsNullOrEmpty(projExpr.Alias))
+                    label += $"\\nAlias: {projExpr.Alias}";
+                if (projExpr.GetResultType() != ExpressionType.Unknown)
+                    label += $"\\nResultType: {projExpr.GetResultType()}";
+                break;
         }
 
         writer.WriteLine($"\"{nodeId}\" [label=\"{label}\"];");
@@ -243,6 +256,15 @@ public class KQLParse
                 GenerateGraphvizForCommonAST(specOpExpr.Left, writer, nodeId);
                 foreach (var item in specOpExpr.Right)
                     GenerateGraphvizForCommonAST(item, writer, nodeId);
+                break;
+
+            case ProjectNode projectNode:
+                foreach (var projection in projectNode.Projections)
+                    GenerateGraphvizForCommonAST(projection, writer, nodeId);
+                break;
+
+            case ProjectionExpression projExpr:
+                GenerateGraphvizForCommonAST(projExpr.Expression, writer, nodeId);
                 break;
         }
     }

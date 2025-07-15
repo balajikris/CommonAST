@@ -230,6 +230,61 @@ The Common AST must be designed for execution by the Expression Evaluation (EE) 
 ### Graphviz Purpose
 **Important**: Graphviz DOT file generation is solely for developer diagnosis and understanding of AST structure during development. It is NOT for end-user visualization or production use.
 
+## Collaborative Design Process
+
+### How to Design New AST Constructs Together
+**CRITICAL**: When a user requests a new AST construct (like ProjectNode), follow this collaborative process:
+
+1. **Start with Questions**: Don't jump to implementation. Ask:
+   - "What are some examples of how this would be used?"
+   - "Should we challenge any assumptions about this design?"
+   - "What are the alternatives we should consider?"
+
+2. **Grammar-Driven Discovery**: Examine both KQL and TraceQL grammars together
+   - Show the user the relevant grammar sections
+   - Discuss how each language expresses the concept
+   - Identify commonalities and differences
+
+3. **Design Iteration**: Propose initial designs and refine based on feedback
+   - Present multiple options with trade-offs
+   - Ask "Why do we need X?" for each requirement
+   - Challenge assumptions about complexity and type systems
+
+4. **Document Decisions**: Capture the reasoning behind design choices
+   - Update memory-bank/designProcess.md with insights
+   - Include examples of questions that led to better designs
+   - Document what we learned for future features
+
+### Design Questions to Always Ask
+When designing new constructs, always explore:
+
+1. **Type System Questions**
+   - "Is type information actually needed here?"
+   - "Can downstream systems infer this information?"
+   - "Are we over-engineering simple cases?"
+
+2. **Complexity Questions**
+   - "What's the minimum viable implementation?"
+   - "How will we handle complex cases later?"
+   - "Should we implement Level 1 (simple) vs Level 2 (complex) features?"
+
+3. **Engine Compatibility Questions**
+   - "Is this design engine-agnostic?"
+   - "Does it work with Arrow data operations?"
+   - "Are we avoiding engine-specific dependencies?"
+
+4. **Validation Questions**
+   - "Where should validation happen?"
+   - "What information does the AST need to provide?"
+   - "How do we separate concerns cleanly?"
+
+### Successful Collaboration Example: ProjectNode
+Reference memory-bank/designProcess.md for how we successfully designed ProjectNode through:
+- Questioning type system requirements
+- Grammar analysis of both languages
+- Iterative refinement based on user feedback
+- Smart design that avoids over-engineering
+
 ## Common Development Tasks
 
 ### Adding New AST Node Types (Grammar-Driven Process)

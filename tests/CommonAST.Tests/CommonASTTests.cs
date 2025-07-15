@@ -568,6 +568,408 @@ namespace CommonAST.Tests
         
         #endregion
 
+        #region Project Node Tests
+        
+        [TestMethod]
+        public void CreateProject_WithSimpleFieldProjections_CreatesProjectNodeCorrectly()
+        {
+            // Arrange
+            var projections = new List<ProjectionExpression>
+            {
+                AstBuilder.CreateFieldProjection("name"),
+                AstBuilder.CreateFieldProjection("duration"),
+                AstBuilder.CreateFieldProjection("status")
+            };
+            
+            // Act
+            var projectNode = AstBuilder.CreateProject(projections, "project");
+            
+            // Assert
+            Assert.IsNotNull(projectNode);
+            Assert.AreEqual(NodeKind.Project, projectNode.NodeKind);
+            Assert.AreEqual("project", projectNode.Keyword);
+            Assert.AreEqual(3, projectNode.Projections.Count);
+            
+            // Verify each projection
+            Assert.AreEqual("name", ((Identifier)projectNode.Projections[0].Expression).Name);
+            Assert.AreEqual("duration", ((Identifier)projectNode.Projections[1].Expression).Name);
+            Assert.AreEqual("status", ((Identifier)projectNode.Projections[2].Expression).Name);
+        }
+        
+        [TestMethod]
+        public void CreateProjection_WithAlias_CreatesProjectionExpressionCorrectly()
+        {
+            // Arrange
+            var expression = AstBuilder.CreateIdentifier("name");
+            
+            // Act
+            var projection = AstBuilder.CreateProjection(expression, "service_name");
+            
+            // Assert
+            Assert.IsNotNull(projection);
+            Assert.AreEqual(NodeKind.ProjectionExpression, projection.NodeKind);
+            Assert.AreSame(expression, projection.Expression);
+            Assert.AreEqual("service_name", projection.Alias);
+            Assert.IsNull(projection.ResultType);
+        }
+        
+        [TestMethod]
+        public void CreateProjection_WithCalculatedFieldAndType_CreatesProjectionExpressionCorrectly()
+        {
+            // Arrange
+            var calculatedExpression = AstBuilder.CreateBinaryExpression(
+                AstBuilder.CreateIdentifier("duration"),
+                BinaryOperatorKind.Divide,
+                AstBuilder.CreateLiteral(1000, LiteralKind.Integer)
+            );
+            
+            // Act
+            var projection = AstBuilder.CreateProjection(
+                calculatedExpression,
+                "duration_ms",
+                ExpressionType.Float
+            );
+            
+            // Assert
+            Assert.IsNotNull(projection);
+            Assert.AreSame(calculatedExpression, projection.Expression);
+            Assert.AreEqual("duration_ms", projection.Alias);
+            Assert.AreEqual(ExpressionType.Float, projection.ResultType);
+        }
+        
+        [TestMethod]
+        public void CreateFieldProjection_WithNamespace_CreatesProjectionCorrectly()
+        {
+            // Arrange & Act
+            var projection = AstBuilder.CreateFieldProjection("name", "service_name", ExpressionType.String, "span");
+            
+            // Assert
+            Assert.IsNotNull(projection);
+            var identifier = projection.Expression as Identifier;
+            Assert.IsNotNull(identifier);
+            Assert.AreEqual("name", identifier.Name);
+            Assert.AreEqual("span", identifier.Namespace);
+            Assert.AreEqual("service_name", projection.Alias);
+            Assert.AreEqual(ExpressionType.String, projection.ResultType);
+        }
+        
+        [TestMethod]
+        public void CreateProject_WithTraceQLSelectKeyword_CreatesProjectNodeCorrectly()
+        {
+            // Arrange
+            var projections = new List<ProjectionExpression>
+            {
+                AstBuilder.CreateFieldProjection("name", ns: "span"),
+                AstBuilder.CreateFieldProjection("duration", ns: "span")
+            };
+            
+            // Act
+            var selectNode = AstBuilder.CreateProject(projections, "select");
+            
+            // Assert
+            Assert.IsNotNull(selectNode);
+            Assert.AreEqual("select", selectNode.Keyword);
+            Assert.AreEqual(2, selectNode.Projections.Count);
+        }
+        
+        [TestMethod]
+        public void CreateProject_WithMixedProjectionTypes_CreatesProjectNodeCorrectly()
+        {
+            // Arrange
+            var projections = new List<ProjectionExpression>
+            {
+                // Simple field
+                AstBuilder.CreateFieldProjection("name"),
+                
+                // Field with alias
+                AstBuilder.CreateProjection(
+                    AstBuilder.CreateIdentifier("duration"),
+                    "response_time"
+                ),
+                
+                // Calculated field with type
+                AstBuilder.CreateProjection(
+                    AstBuilder.CreateBinaryExpression(
+                        AstBuilder.CreateIdentifier("count"),
+                        BinaryOperatorKind.Multiply,
+                        AstBuilder.CreateLiteral(2, LiteralKind.Integer)
+                    ),
+                    "double_count",
+                    ExpressionType.Integer
+                ),
+                
+                // Function call with type
+                AstBuilder.CreateProjection(
+                    AstBuilder.CreateCallExpression("toupper", new List<Expression>
+                    {
+                        AstBuilder.CreateIdentifier("status")
+                    }),
+                    "upper_status",
+                    ExpressionType.String
+                )
+            };
+            
+            // Act
+            var projectNode = AstBuilder.CreateProject(projections, "project");
+            
+            // Assert
+            Assert.IsNotNull(projectNode);
+            Assert.AreEqual(4, projectNode.Projections.Count);
+            
+            // Verify simple field (no alias, no type)
+            Assert.IsNull(projectNode.Projections[0].Alias);
+            Assert.IsNull(projectNode.Projections[0].ResultType);
+            
+            // Verify field with alias (no type)
+            Assert.AreEqual("response_time", projectNode.Projections[1].Alias);
+            Assert.IsNull(projectNode.Projections[1].ResultType);
+            
+            // Verify calculated field with type
+            Assert.AreEqual("double_count", projectNode.Projections[2].Alias);
+            Assert.AreEqual(ExpressionType.Integer, projectNode.Projections[2].ResultType);
+            
+            // Verify function call with type
+            Assert.AreEqual("upper_status", projectNode.Projections[3].Alias);
+            Assert.AreEqual(ExpressionType.String, projectNode.Projections[3].ResultType);
+        }
+        
+        [TestMethod]
+        public void CreateProject_WithEmptyProjections_CreatesProjectNodeCorrectly()
+        {
+            // Arrange
+            var projections = new List<ProjectionExpression>();
+            
+            // Act
+            var projectNode = AstBuilder.CreateProject(projections, "project");
+            
+            // Assert
+            Assert.IsNotNull(projectNode);
+            Assert.AreEqual(0, projectNode.Projections.Count);
+            Assert.AreEqual("project", projectNode.Keyword);
+        }
+        
+        [TestMethod]
+        public void ProjectionExpression_AllExpressionTypes_CreatesCorrectly()
+        {
+            // Test Level 1 Support: Simple fields, aliases, basic arithmetic, simple functions
+            
+            // Arrange & Act - Test different expression types in projections
+            
+            // 1. Simple identifier
+            var simpleProjection = AstBuilder.CreateProjection(AstBuilder.CreateIdentifier("field"));
+            
+            // 2. Binary arithmetic expression
+            var arithmeticProjection = AstBuilder.CreateProjection(
+                AstBuilder.CreateBinaryExpression(
+                    AstBuilder.CreateIdentifier("a"),
+                    BinaryOperatorKind.Add,
+                    AstBuilder.CreateIdentifier("b")
+                ),
+                "sum_ab",
+                ExpressionType.Integer
+            );
+            
+            // 3. Function call expression
+            var functionProjection = AstBuilder.CreateProjection(
+                AstBuilder.CreateCallExpression("substring", new List<Expression>
+                {
+                    AstBuilder.CreateIdentifier("text"),
+                    AstBuilder.CreateLiteral(0, LiteralKind.Integer),
+                    AstBuilder.CreateLiteral(10, LiteralKind.Integer)
+                }),
+                "short_text",
+                ExpressionType.String
+            );
+            
+            // 4. Unary expression
+            var unaryProjection = AstBuilder.CreateProjection(
+                AstBuilder.CreateUnaryExpression("-", AstBuilder.CreateIdentifier("value")),
+                "negative_value",
+                ExpressionType.Integer
+            );
+            
+            // Assert
+            Assert.AreEqual(NodeKind.Identifier, simpleProjection.Expression.NodeKind);
+            Assert.AreEqual(NodeKind.BinaryExpression, arithmeticProjection.Expression.NodeKind);
+            Assert.AreEqual(NodeKind.CallExpression, functionProjection.Expression.NodeKind);
+            Assert.AreEqual(NodeKind.UnaryExpression, unaryProjection.Expression.NodeKind);
+            
+            // Verify types are set only for calculated expressions
+            Assert.IsNull(simpleProjection.ResultType);
+            Assert.AreEqual(ExpressionType.Integer, arithmeticProjection.ResultType);
+            Assert.AreEqual(ExpressionType.String, functionProjection.ResultType);
+            Assert.AreEqual(ExpressionType.Integer, unaryProjection.ResultType);
+        }
+        
+        [TestMethod]
+        public void ExpressionType_AllTypes_Covered()
+        {
+            // Test all ExpressionType enum values
+            var projections = new List<ProjectionExpression>
+            {
+                AstBuilder.CreateProjection(AstBuilder.CreateIdentifier("str_field"), "str", ExpressionType.String),
+                AstBuilder.CreateProjection(AstBuilder.CreateIdentifier("int_field"), "int", ExpressionType.Integer),
+                AstBuilder.CreateProjection(AstBuilder.CreateIdentifier("float_field"), "float", ExpressionType.Float),
+                AstBuilder.CreateProjection(AstBuilder.CreateIdentifier("bool_field"), "bool", ExpressionType.Boolean),
+                AstBuilder.CreateProjection(AstBuilder.CreateIdentifier("dur_field"), "dur", ExpressionType.Duration),
+                AstBuilder.CreateProjection(AstBuilder.CreateIdentifier("dt_field"), "dt", ExpressionType.DateTime),
+                AstBuilder.CreateProjection(AstBuilder.CreateIdentifier("guid_field"), "guid", ExpressionType.Guid),
+                AstBuilder.CreateProjection(AstBuilder.CreateIdentifier("dyn_field"), "dyn", ExpressionType.Dynamic)
+            };
+            
+            // Act
+            var projectNode = AstBuilder.CreateProject(projections, "project");
+            
+            // Assert
+            Assert.AreEqual(8, projectNode.Projections.Count);
+            Assert.AreEqual(ExpressionType.String, projectNode.Projections[0].ResultType);
+            Assert.AreEqual(ExpressionType.Integer, projectNode.Projections[1].ResultType);
+            Assert.AreEqual(ExpressionType.Float, projectNode.Projections[2].ResultType);
+            Assert.AreEqual(ExpressionType.Boolean, projectNode.Projections[3].ResultType);
+            Assert.AreEqual(ExpressionType.Duration, projectNode.Projections[4].ResultType);
+            Assert.AreEqual(ExpressionType.DateTime, projectNode.Projections[5].ResultType);
+            Assert.AreEqual(ExpressionType.Guid, projectNode.Projections[6].ResultType);
+            Assert.AreEqual(ExpressionType.Dynamic, projectNode.Projections[7].ResultType);
+        }
+        
+        #endregion
+
+        #region Project Node Example Tests
+        
+        [TestMethod]
+        public void KqlSimpleProjectExample_CreatesExpectedAst()
+        {
+            // Arrange & Act
+            var query = Examples.KqlSimpleProjectExample();
+            
+            // Assert
+            Assert.IsNotNull(query);
+            Assert.AreEqual("MyTable", query.Source);
+            Assert.AreEqual(1, query.Operations.Count);
+            
+            var projectNode = query.Operations[0] as ProjectNode;
+            Assert.IsNotNull(projectNode);
+            Assert.AreEqual("project", projectNode.Keyword);
+            Assert.AreEqual(3, projectNode.Projections.Count);
+            
+            // Verify projection fields
+            Assert.AreEqual("name", ((Identifier)projectNode.Projections[0].Expression).Name);
+            Assert.AreEqual("duration", ((Identifier)projectNode.Projections[1].Expression).Name);
+            Assert.AreEqual("status", ((Identifier)projectNode.Projections[2].Expression).Name);
+        }
+        
+        [TestMethod]
+        public void KqlProjectWithAliasesAndCalculationsExample_CreatesExpectedAst()
+        {
+            // Arrange & Act
+            var query = Examples.KqlProjectWithAliasesAndCalculationsExample();
+            
+            // Assert
+            Assert.IsNotNull(query);
+            Assert.AreEqual("Logs", query.Source);
+            Assert.AreEqual(1, query.Operations.Count);
+            
+            var projectNode = query.Operations[0] as ProjectNode;
+            Assert.IsNotNull(projectNode);
+            Assert.AreEqual("project", projectNode.Keyword);
+            Assert.AreEqual(3, projectNode.Projections.Count);
+            
+            // Verify first projection (alias without calculation)
+            var firstProj = projectNode.Projections[0];
+            Assert.AreEqual("service_name", firstProj.Alias);
+            Assert.IsNull(firstProj.ResultType);
+            Assert.AreEqual(NodeKind.Identifier, firstProj.Expression.NodeKind);
+            
+            // Verify second projection (calculated field)
+            var secondProj = projectNode.Projections[1];
+            Assert.AreEqual("duration_ms", secondProj.Alias);
+            Assert.AreEqual(ExpressionType.Float, secondProj.ResultType);
+            Assert.AreEqual(NodeKind.BinaryExpression, secondProj.Expression.NodeKind);
+            
+            // Verify third projection (function call)
+            var thirdProj = projectNode.Projections[2];
+            Assert.AreEqual("upper_name", thirdProj.Alias);
+            Assert.AreEqual(ExpressionType.String, thirdProj.ResultType);
+            Assert.AreEqual(NodeKind.CallExpression, thirdProj.Expression.NodeKind);
+        }
+        
+        [TestMethod]
+        public void TraceQLSelectExample_CreatesExpectedAst()
+        {
+            // Arrange & Act
+            var query = Examples.TraceQLSelectExample();
+            
+            // Assert
+            Assert.IsNotNull(query);
+            Assert.IsNull(query.Source);
+            Assert.AreEqual(1, query.Operations.Count);
+            
+            var selectNode = query.Operations[0] as ProjectNode;
+            Assert.IsNotNull(selectNode);
+            Assert.AreEqual("select", selectNode.Keyword);
+            Assert.AreEqual(3, selectNode.Projections.Count);
+            
+            // Verify span.name projection
+            var firstProj = selectNode.Projections[0];
+            var firstId = firstProj.Expression as Identifier;
+            Assert.IsNotNull(firstId);
+            Assert.AreEqual("name", firstId.Name);
+            Assert.AreEqual("span", firstId.Namespace);
+            
+            // Verify span.duration projection
+            var secondProj = selectNode.Projections[1];
+            var secondId = secondProj.Expression as Identifier;
+            Assert.IsNotNull(secondId);
+            Assert.AreEqual("duration", secondId.Name);
+            Assert.AreEqual("span", secondId.Namespace);
+            
+            // Verify service.name projection
+            var thirdProj = selectNode.Projections[2];
+            var thirdId = thirdProj.Expression as Identifier;
+            Assert.IsNotNull(thirdId);
+            Assert.AreEqual("name", thirdId.Name);
+            Assert.AreEqual("service", thirdId.Namespace);
+        }
+        
+        [TestMethod]
+        public void QueryWithFilterAndProjectExample_CreatesExpectedAst()
+        {
+            // Arrange & Act
+            var query = Examples.QueryWithFilterAndProjectExample();
+            
+            // Assert
+            Assert.IsNotNull(query);
+            Assert.AreEqual("MyTable", query.Source);
+            Assert.AreEqual(2, query.Operations.Count);
+            
+            // Verify first operation is filter
+            var filterNode = query.Operations[0] as FilterNode;
+            Assert.IsNotNull(filterNode);
+            Assert.AreEqual("where", filterNode.Keyword);
+            
+            // Verify second operation is project
+            var projectNode = query.Operations[1] as ProjectNode;
+            Assert.IsNotNull(projectNode);
+            Assert.AreEqual("project", projectNode.Keyword);
+            Assert.AreEqual(3, projectNode.Projections.Count);
+            
+            // Verify simple field projections
+            Assert.AreEqual("name", ((Identifier)projectNode.Projections[0].Expression).Name);
+            Assert.AreEqual("duration", ((Identifier)projectNode.Projections[1].Expression).Name);
+            
+            // Verify complex case expression (Level 2 TODO example)
+            var caseProj = projectNode.Projections[2];
+            Assert.AreEqual("category", caseProj.Alias);
+            Assert.AreEqual(ExpressionType.String, caseProj.ResultType);
+            Assert.AreEqual(NodeKind.CallExpression, caseProj.Expression.NodeKind);
+            
+            var caseCall = caseProj.Expression as CallExpression;
+            Assert.IsNotNull(caseCall);
+            Assert.AreEqual("case", caseCall.Callee.Name);
+        }
+        
+        #endregion
+
         #region Example Tests
         
         [TestMethod]

@@ -8,6 +8,7 @@ public enum NodeKind
 {
     Query,
     Filter,
+    Project,
     Literal,
     Identifier,
     BinaryExpression,
@@ -16,7 +17,8 @@ public enum NodeKind
     ParenthesizedExpression,
     SpecialOperatorExpression,
     WildcardExpression,
-    PathExpression
+    PathExpression,
+    ProjectionExpression
 }
 
 /// <summary>
@@ -143,6 +145,68 @@ public enum SpanFilterCombination
 }
 
 /// <summary>
+/// Project operation node representing both KQL's project operator and TraceQL's select operation
+/// Projects specified fields/columns from the data, optionally with aliases
+/// 
+/// Level 1 Support (Current):
+/// - Simple field references
+/// - Aliasing  
+/// - Basic arithmetic operations (+, -, *, /)
+/// - Simple function calls (string, math, conversion)
+/// 
+/// Level 2 Support (Future TODO):
+/// - Complex nested expressions
+/// - Conditional expressions (case)
+/// - Advanced function calls
+/// </summary>
+public class ProjectNode : OperationNode
+{
+    public override NodeKind NodeKind => NodeKind.Project;
+    
+    /// <summary>
+    /// List of field projections to include in the output
+    /// No wildcard (*) support - if all fields needed, project operation should be omitted
+    /// </summary>
+    public List<ProjectionExpression> Projections { get; set; } = new List<ProjectionExpression>();
+    
+    /// <summary>
+    /// Keyword for language-specific syntax ('project' for KQL, 'select' for TraceQL)
+    /// </summary>
+    public string? Keyword { get; set; }
+}
+
+/// <summary>
+/// Represents a single field projection with optional alias and type information
+/// </summary>
+public class ProjectionExpression : ASTNode
+{
+    public override NodeKind NodeKind => NodeKind.ProjectionExpression;
+    
+    /// <summary>
+    /// The expression to project (field name, calculation, function call, etc.)
+    /// </summary>
+    public required Expression Expression { get; set; }
+    
+    /// <summary>
+    /// Optional alias for the projected field
+    /// </summary>
+    public string? Alias { get; set; }
+    
+    /// <summary>
+    /// Internal declared type determined during AST construction
+    /// Users should call GetResultType() instead of accessing this directly
+    /// </summary>
+    internal ExpressionType? DeclaredType { get; set; }
+    
+    /// <summary>
+    /// Gets the effective type of this projection, considering both declared and semantic analysis
+    /// Returns resolved type from semantic analysis if available, otherwise returns declared type
+    /// Returns Unknown if no type information is available (simple field projections)
+    /// </summary>
+    public ExpressionType GetResultType() => DeclaredType ?? ExpressionType.Unknown;
+}
+
+/// <summary>
 /// Parameter for operators (KQL specific)
 /// </summary>
 // public class Parameter : INode
@@ -182,6 +246,24 @@ public enum LiteralKind
     Float,
     Boolean,
     Null,
+    Duration,
+    DateTime,
+    Guid,
+    Dynamic
+}
+
+/// <summary>
+/// Type information for expressions - required for Expression Evaluation engine
+/// Level 1 Support: Basic types for simple field projections and arithmetic
+/// Level 2 Support (Future TODO): Complex types, arrays, nested objects
+/// </summary>
+public enum ExpressionType
+{
+    Unknown,    // Type cannot be determined at syntax analysis time - requires semantic analysis
+    String,
+    Integer,
+    Float,
+    Boolean,
     Duration,
     DateTime,
     Guid,
@@ -443,6 +525,47 @@ public static class AstBuilder
             Right = right
         };
     }
+
+    /// <summary>
+    /// Creates a ProjectNode with specified projections
+    /// Level 1 Support: Simple fields, aliases, basic arithmetic, simple functions
+    /// </summary>
+    public static ProjectNode CreateProject(List<ProjectionExpression> projections, string? keyword = null)
+    {
+        return new ProjectNode
+        {
+            Projections = projections,
+            Keyword = keyword
+        };
+    }
+
+    /// <summary>
+    /// Creates a ProjectionExpression with optional alias and declared type
+    /// Defaults to null - semantic analysis will resolve actual types
+    /// </summary>
+    public static ProjectionExpression CreateProjection(Expression expression, string? alias = null, ExpressionType? declaredType = null)
+    {
+        return new ProjectionExpression
+        {
+            Expression = expression,
+            Alias = alias,
+            DeclaredType = declaredType
+        };
+    }
+
+    /// <summary>
+    /// Convenience method for simple field projection with alias
+    /// Defaults to null type - semantic analysis will resolve from schema
+    /// </summary>
+    public static ProjectionExpression CreateFieldProjection(string fieldName, string? alias = null, ExpressionType? declaredType = null, string? ns = null)
+    {
+        return new ProjectionExpression
+        {
+            Expression = CreateIdentifier(fieldName, ns),
+            Alias = alias,
+            DeclaredType = declaredType
+        };
+    }
 }
 
 /// <summary>
@@ -586,5 +709,126 @@ public static class Examples
         query.Operations.Add(filterNode);
         
         return query;
+    }
+    
+    // KQL: | project name, duration, status
+    public static QueryNode KqlSimpleProjectExample()
+    {
+        var projections = new List<ProjectionExpression>
+        {
+            AstBuilder.CreateFieldProjection("name"),
+            AstBuilder.CreateFieldProjection("duration"),
+            AstBuilder.CreateFieldProjection("status")
+        };
+        
+        var projectNode = AstBuilder.CreateProject(projections, "project");
+        
+        var query = AstBuilder.CreateQuery("MyTable");
+        query.Operations.Add(projectNode);
+        
+        return query;
+    }
+    
+    // KQL: | project service_name = name, duration_ms = duration / 1000, upper_name = toupper(name)
+    public static QueryNode KqlProjectWithAliasesAndCalculationsExample()
+    {
+        var projections = new List<ProjectionExpression>
+        {
+            // Simple alias: service_name = name
+            AstBuilder.CreateProjection(
+                AstBuilder.CreateIdentifier("name"),
+                alias: "service_name"
+            ),
+            
+            // Calculated field: duration_ms = duration / 1000
+            AstBuilder.CreateProjection(
+                AstBuilder.CreateBinaryExpression(
+                    AstBuilder.CreateIdentifier("duration"),
+                    BinaryOperatorKind.Divide,
+                    AstBuilder.CreateLiteral(1000, LiteralKind.Integer)
+                ),
+                alias: "duration_ms",
+                declaredType: ExpressionType.Float
+            ),
+            
+            // Function call: upper_name = toupper(name)
+            AstBuilder.CreateProjection(
+                AstBuilder.CreateCallExpression("toupper", new List<Expression>
+                {
+                    AstBuilder.CreateIdentifier("name")
+                }),
+                alias: "upper_name",
+                declaredType: ExpressionType.String
+            )
+        };
+        
+        var projectNode = AstBuilder.CreateProject(projections, "project");
+        
+        var query = AstBuilder.CreateQuery("Logs");
+        query.Operations.Add(projectNode);
+        
+        return query;
+    }
+    
+    // TraceQL: select(span.name, span.duration, .service.name)
+    public static QueryNode TraceQLSelectExample()
+    {
+        var projections = new List<ProjectionExpression>
+        {
+            AstBuilder.CreateFieldProjection("name", ns: "span"),
+            AstBuilder.CreateFieldProjection("duration", ns: "span"),
+            AstBuilder.CreateFieldProjection("name", ns: "service")
+        };
+        
+        var selectNode = AstBuilder.CreateProject(projections, "select");
+        
+        var query = AstBuilder.CreateQuery();
+        query.Operations.Add(selectNode);
+        
+        return query;
+    }
+    
+    // KQL: MyTable | where timestamp > ago(1h) | project name, duration, category = case(duration > 1000, "slow", "fast")
+    public static QueryNode QueryWithFilterAndProjectExample()
+    {
+        // Filter operation
+        var filterExpression = AstBuilder.CreateBinaryExpression(
+            AstBuilder.CreateIdentifier("timestamp"),
+            BinaryOperatorKind.GreaterThan,
+            AstBuilder.CreateCallExpression("ago", new List<Expression>
+            {
+                AstBuilder.CreateLiteral("1h", LiteralKind.Duration)
+            })
+        );
+        var filterNode = AstBuilder.CreateFilter(filterExpression, "where");
+        
+        // Project operation
+        var projections = new List<ProjectionExpression>
+        {
+            AstBuilder.CreateFieldProjection("name"),
+            AstBuilder.CreateFieldProjection("duration"),
+            
+            // Level 2 TODO: case expressions - for now showing basic conditional concept
+            AstBuilder.CreateProjection(
+                AstBuilder.CreateCallExpression("case", new List<Expression>
+                {
+                    AstBuilder.CreateBinaryExpression(
+                        AstBuilder.CreateIdentifier("duration"),
+                        BinaryOperatorKind.GreaterThan,
+                        AstBuilder.CreateLiteral(1000, LiteralKind.Integer)
+                    ),
+                    AstBuilder.CreateLiteral("slow", LiteralKind.String),
+                    AstBuilder.CreateLiteral("fast", LiteralKind.String)
+                }),
+                alias: "category",
+                declaredType: ExpressionType.String
+            )
+        };
+        var projectNode = AstBuilder.CreateProject(projections, "project");
+        
+        // Create query with both operations
+        var operations = new List<OperationNode> { filterNode, projectNode };
+        
+        return AstBuilder.CreateQueryWithOperations(operations, "MyTable");
     }
 }

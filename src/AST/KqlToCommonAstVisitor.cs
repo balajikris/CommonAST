@@ -43,6 +43,9 @@ public class KqlToCommonAstVisitor
             case SyntaxKind.FilterOperator:
                 VisitFilterOperator(node as FilterOperator);
                 break;
+            case SyntaxKind.ProjectOperator:
+                VisitProjectOperator(node as ProjectOperator);
+                break;
             // Handle all binary expression types
             case SyntaxKind.EqualExpression:
             case SyntaxKind.NotEqualExpression:
@@ -165,6 +168,66 @@ public class KqlToCommonAstVisitor
                 _rootNode.Operations.Add(filterNode);
             }
         }
+    }
+
+    private void VisitProjectOperator(ProjectOperator node)
+    {
+        if (node == null) return;
+
+        var projections = new List<ProjectionExpression>();
+
+        // Process the expression list - ProjectOperator has Expressions property
+        if (node.Expressions != null)
+        {
+            foreach (var separatedElement in node.Expressions)
+            {
+                var column = separatedElement.Element;
+                
+                // For each column, we need to extract:
+                // 1. The expression (field reference, calculation, etc.)
+                // 2. The optional alias (if using '=' syntax)
+                
+                if (column is SimpleNamedExpression namedExpr)
+                {
+                    // This handles cases like: field = expression or just field
+                    string? alias = null;
+                    
+                    if (namedExpr.Name != null)
+                    {
+                        alias = namedExpr.Name.SimpleName;
+                    }
+
+                    // Visit the expression part
+                    if (namedExpr.Expression != null)
+                    {
+                        Visit(namedExpr.Expression);
+                        
+                        if (_expressionStack.Count > 0)
+                        {
+                            var expr = _expressionStack.Pop();
+                            var projection = AstBuilder.CreateProjection(expr, alias);
+                            projections.Add(projection);
+                        }
+                    }
+                }
+                else
+                {
+                    // This handles simple field references without aliases
+                    Visit(column);
+                    
+                    if (_expressionStack.Count > 0)
+                    {
+                        var expr = _expressionStack.Pop();
+                        var projection = AstBuilder.CreateProjection(expr);
+                        projections.Add(projection);
+                    }
+                }
+            }
+        }
+
+        // Create the project node and add it to the query operations
+        var projectNode = AstBuilder.CreateProject(projections, "project");
+        _rootNode.Operations.Add(projectNode);
     }
 
     private void VisitBinaryExpression(Kusto.Language.Syntax.BinaryExpression node)

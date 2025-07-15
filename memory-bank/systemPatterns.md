@@ -326,3 +326,99 @@ Consistent error handling across components:
 - Clear error messages with actionable guidance
 
 This architecture provides a solid foundation for cross-language query processing while maintaining extensibility for future enhancements.
+
+## Visitor Pattern Requirements for New AST Constructs
+
+**CRITICAL**: When implementing new AST node types, the visitor pattern must be updated to handle the new constructs. This is essential for complete implementation.
+
+### Required Visitor Updates
+
+When adding a new AST construct (like ProjectNode), you must update **ALL** visitor implementations:
+
+1. **KqlToCommonAstVisitor** (most critical)
+   - Add new case to the `Visit(SyntaxNode node)` switch statement
+   - Implement the corresponding `VisitXxxOperator()` method
+   - Handle language-specific syntax parsing
+   - Convert to Common AST representation
+
+2. **Future Visitors** (TraceQL, others)
+   - Any future visitor implementations must also support the new constructs
+   - Follow the same pattern for consistency
+
+### Example: Adding ProjectNode Support
+
+**Step 1**: Add case to switch statement
+```csharp
+case SyntaxKind.ProjectOperator:
+    VisitProjectOperator(node as ProjectOperator);
+    break;
+```
+
+**Step 2**: Implement visitor method
+```csharp
+private void VisitProjectOperator(ProjectOperator node)
+{
+    // Parse KQL project syntax
+    // Extract expressions and aliases
+    // Convert to Common AST ProjectNode
+    // Add to query operations
+}
+```
+
+**Step 3**: Handle language-specific nuances
+- KQL: `| project field1, alias = field2, calculation = field3 / 1000`
+- TraceQL: `select(span.field1, span.field2)` (different syntax, same concept)
+
+### Common Visitor Patterns
+
+**Expression Stack Pattern**: Use stack to handle nested expressions
+```csharp
+private Stack<Expression> _expressionStack = new Stack<Expression>();
+
+// In visitor methods:
+Visit(childExpression);
+if (_expressionStack.Count > 0)
+{
+    var expr = _expressionStack.Pop();
+    // Use expression
+}
+```
+
+**Separated Elements Pattern**: Handle comma-separated lists
+```csharp
+foreach (var separatedElement in node.Expressions)
+{
+    var actualExpression = separatedElement.Element;
+    Visit(actualExpression);
+}
+```
+
+**Alias Handling Pattern**: Extract optional aliases from syntax
+```csharp
+if (column is SimpleNamedExpression namedExpr)
+{
+    string? alias = namedExpr.Name?.SimpleName;
+    // Process with alias
+}
+else
+{
+    // Process without alias
+}
+```
+
+### Testing Visitor Implementation
+
+Always test visitor updates with:
+1. **Simple queries**: Basic syntax verification
+2. **Complex queries**: Nested expressions, multiple operations
+3. **Edge cases**: Empty lists, null expressions
+4. **Integration tests**: End-to-end query processing
+
+### Memory Bank Update Requirement
+
+When adding visitor support for new constructs, **MUST** update:
+- `memory-bank/progress.md`: Mark visitor support as complete
+- `memory-bank/systemPatterns.md`: Document any new patterns
+- `memory-bank/designProcess.md`: Capture design decisions
+
+This ensures future developers understand the complete implementation requirements for new AST constructs.
