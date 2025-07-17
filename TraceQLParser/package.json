@@ -1,0 +1,31 @@
+{
+  "name": "traceqlparser",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "traceql",
+    "parser",
+    "grafana"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": "TraceQL parser integration with CommonAST",
+  "dependencies": {
+    "@grafana/lezer-traceql": "^0.0.22",
+    "@hpcc-js/wasm": "^2.24.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.19.8",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.2",
+    "typescript": "^5.3.2"
+  }
+}
