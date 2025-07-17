@@ -121,6 +121,99 @@ npm run build
 npm test
 ```
 
+## TraceQL Tester
+
+A comprehensive command-line tool for testing and understanding TraceQL queries.
+
+### Basic Usage
+
+```bash
+# Test a query from file (recommended for complex queries)
+node traceql-tester.js --file examples/basic.traceql
+
+# Test a query string (shell-specific escaping)
+# PowerShell/Windows:
+node traceql-tester.js '{ span.name = "http.request" }'
+
+# Bash/Linux/macOS:
+node traceql-tester.js "{ span.name = \"http.request\" }"
+
+# Interactive mode (easiest for testing)
+node traceql-tester.js --interactive
+```
+
+### Shell Escaping Guide
+
+Different shells handle quote escaping differently:
+
+#### PowerShell (Windows)
+```powershell
+# Use single quotes to avoid escaping issues
+node traceql-tester.js '{ span.name = "http.request" }'
+node traceql-tester.js '{ span.duration > 100ms }'
+```
+
+#### Command Prompt (Windows)
+```cmd
+# Use double quotes and escape inner quotes
+node traceql-tester.js "{ span.name = \"http.request\" }"
+```
+
+#### Bash/Zsh (Linux/macOS)
+```bash
+# Use double quotes and escape inner quotes
+node traceql-tester.js "{ span.name = \"http.request\" }"
+# Or use single quotes
+node traceql-tester.js '{ span.name = "http.request" }'
+```
+
+**💡 Tip**: For complex queries with quotes, use `--file` option or `--interactive` mode to avoid shell escaping issues.
+
+### Options
+
+```bash
+--svg                Generate SVG visualization
+--output <filename>  Specify SVG output filename
+--ast                Show CommonAST output
+--quiet              Suppress informational messages
+--help               Show help
+```
+
+### Examples
+
+```bash
+# Generate SVG visualization
+node traceql-tester.js --file examples/basic.traceql --svg
+
+# Show both text and CommonAST output
+node traceql-tester.js --file examples/basic.traceql --ast
+
+# Custom SVG filename
+node traceql-tester.js --file examples/basic.traceql --svg --output my-query.svg
+```
+
+### Interactive Mode
+
+The interactive mode provides a REPL-style interface for testing multiple queries:
+
+```bash
+node traceql-tester.js --interactive
+```
+
+Available commands in interactive mode:
+- `help` - Show available commands
+- `svg on/off` - Toggle SVG generation
+- `ast on/off` - Toggle CommonAST output
+- `examples` - Show example queries
+- `exit` or `quit` - Exit the tester
+
+### Use Cases
+
+1. **Valid Query Understanding**: Input a TraceQL query and see its complete parse tree structure
+2. **Error Detection**: Invalid queries show error markers (⚠) in the parse tree
+3. **SVG Documentation**: Generate professional visualizations for documentation
+4. **Learning TraceQL**: Interactive exploration of TraceQL syntax and structure
+
 ## Integration with CommonAST
 
 This parser integrates seamlessly with the CommonAST C# project by:
