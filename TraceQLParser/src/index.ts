@@ -54,18 +54,29 @@ export interface BinaryExpression extends IExpression {
 }
 
 /**
- * Generates a formatted text representation of the parse tree
+ * Generates a formatted text representation of the parse tree with error details
  */
 export function printParseTree(query: string): string {
   try {
     const tree = traceqlParser.parse(query);
     const cursor = tree.cursor();
     const treeStructure: string[] = [];
+    const errors: Array<{position: number, length: number, message: string}> = [];
     
     function buildTreeStructure(cursor: TreeCursor, depth: number) {
       const nodeName = cursor.name;
       const nodeText = query.substring(cursor.from, cursor.to);
       const position = `[${cursor.from}-${cursor.to}]`;
+      
+      // Check for error nodes and collect error information
+      if (nodeName.includes('⚠') || cursor.type.isError) {
+        const errorMsg = generateErrorMessage(cursor, query);
+        errors.push({
+          position: cursor.from,
+          length: cursor.to - cursor.from,
+          message: errorMsg
+        });
+      }
       
       // Use box-drawing characters for better visual hierarchy
       let prefix = '';
@@ -87,10 +98,89 @@ export function printParseTree(query: string): string {
     }
     
     buildTreeStructure(cursor, 0);
+    
+    // Add error details at the end if there are any errors
+    if (errors.length > 0) {
+      treeStructure.push('');
+      treeStructure.push('🚨 Parse Errors Detected:');
+      treeStructure.push('═'.repeat(50));
+      
+      errors.forEach((error, index) => {
+        const errorText = query.substring(error.position, error.position + error.length);
+        const contextStart = Math.max(0, error.position - 10);
+        const contextEnd = Math.min(query.length, error.position + error.length + 10);
+        const context = query.substring(contextStart, contextEnd);
+        const pointer = ' '.repeat(error.position - contextStart) + '^'.repeat(Math.max(1, error.length));
+        
+        treeStructure.push(`Error ${index + 1}:`);
+        treeStructure.push(`  Position: ${error.position}-${error.position + error.length}`);
+        treeStructure.push(`  Text: "${errorText}"`);
+        treeStructure.push(`  Message: ${error.message}`);
+        treeStructure.push(`  Context: "${context}"`);
+        treeStructure.push(`           ${pointer}`);
+        treeStructure.push('');
+      });
+    }
+    
     return treeStructure.join('\n');
   } catch (error) {
     throw new Error(`Query compilation failed: ${error}`);
   }
+}
+
+/**
+ * Generate a descriptive error message for a parse error
+ */
+function generateErrorMessage(cursor: TreeCursor, query: string): string {
+  const position = cursor.from;
+  const length = cursor.to - cursor.from;
+  const errorText = query.substring(cursor.from, cursor.to);
+  
+  // Try to determine the type of error based on context
+  if (errorText.trim() === '') {
+    return 'Unexpected end of input';
+  }
+  
+  // Look at surrounding context to provide better error messages
+  const contextBefore = query.substring(Math.max(0, position - 20), position);
+  const contextAfter = query.substring(cursor.to, Math.min(query.length, cursor.to + 20));
+  
+  // Common TraceQL syntax error patterns
+  if (errorText.match(/^[a-zA-Z_][a-zA-Z0-9_]*$/)) {
+    if (contextBefore.includes('=') && !contextAfter.startsWith('"') && !contextAfter.match(/^\d/)) {
+      return `Expected quoted string or numeric value, found identifier: "${errorText}"`;
+    }
+    return `Unexpected identifier: "${errorText}"`;
+  }
+  
+  if (errorText.includes('"') && !errorText.match(/^".*"$/)) {
+    return 'Unterminated string literal';
+  }
+  
+  if (errorText.match(/^[{}[\]()]/)) {
+    return `Unexpected ${getTokenTypeName(errorText)}: "${errorText}"`;
+  }
+  
+  if (errorText.match(/^[=<>!]/)) {
+    return `Unexpected operator: "${errorText}" (check if operands are properly formatted)`;
+  }
+  
+  return `Unexpected token: "${errorText}"`;
+}
+
+/**
+ * Get a human-readable name for token types
+ */
+function getTokenTypeName(token: string): string {
+  const tokenNames: Record<string, string> = {
+    '{': 'opening brace',
+    '}': 'closing brace',
+    '[': 'opening bracket',
+    ']': 'closing bracket',
+    '(': 'opening parenthesis',
+    ')': 'closing parenthesis',
+  };
+  return tokenNames[token] || 'symbol';
 }
 
 /**
