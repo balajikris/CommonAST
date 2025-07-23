@@ -210,9 +210,35 @@ Available commands in interactive mode:
 ### Use Cases
 
 1. **Valid Query Understanding**: Input a TraceQL query and see its complete parse tree structure
-2. **Error Detection**: Invalid queries show error markers (⚠) in the parse tree
+2. **Enhanced Error Detection**: Invalid queries show:
+   - Error markers (⚠) in the parse tree
+   - Detailed error messages with position and context
+   - Specific suggestions for fixing syntax errors
+   - Visual pointer showing exact error location
 3. **SVG Documentation**: Generate professional visualizations for documentation
 4. **Learning TraceQL**: Interactive exploration of TraceQL syntax and structure
+
+### Enhanced Error Reporting
+
+When parse errors are detected, the tool now provides comprehensive error details:
+
+```
+🚨 Parse Errors Detected:
+══════════════════════════════════════════════════
+Error 1:
+  Position: 14-21
+  Text: "invalid"
+  Message: Expected quoted string or numeric value, found identifier: "invalid"
+  Context: "an.name = invalid syntax he"
+                     ^^^^^^^
+```
+
+**Error Details Include:**
+- **Position**: Exact character range of the error
+- **Text**: The problematic text that caused the error
+- **Message**: Human-readable explanation of what went wrong
+- **Context**: Surrounding text with visual pointer to error location
+- **Suggestions**: Specific guidance on how to fix common syntax errors
 
 ## Integration with CommonAST
 
