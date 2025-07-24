@@ -3,9 +3,9 @@
 ## Current Work Focus
 
 ### Primary Development Areas
-1. **TraceQL Syntax Correction**: Completed correction of incorrect query examples in TraceQL-Syntax-summary.md
-2. **Group Operator & Aggregate Expression Design**: Preparing foundation for implementing Group operator and Aggregate expressions
-3. **Parser Validation**: Using traceql-tester.js to validate query syntax correctness
+1. **Aggregation Design Documentation**: Completed comprehensive design documents for aggregation semantics and CommonAST structure
+2. **Cross-Language Analysis**: Detailed analysis of TraceQL vs KQL aggregation patterns and syntax differences
+3. **AST Architecture Design**: Proposed new node types and builder patterns for unified aggregation representation
 
 ### Recent Changes
 - **Added .clinerules**: Implemented memory bank workflow and documentation standards
