@@ -18,7 +18,7 @@
   "license": "ISC",
   "description": "TraceQL parser integration with CommonAST",
   "dependencies": {
-    "@grafana/lezer-traceql": "^0.0.22",
+    "@grafana/lezer-traceql": "^0.0.23",
     "@hpcc-js/wasm": "^2.24.3"
   },
   "devDependencies": {
