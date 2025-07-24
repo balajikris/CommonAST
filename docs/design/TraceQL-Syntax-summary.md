@@ -38,7 +38,7 @@
 {} | sum_over_time(span.latency) by (resource.service)
 
 # Aggregate with comparison
-{} | sum(span.latency) > 1s by (resource.service)
+{} | by (resource.service) | sum(span.latency) > 1s
 
 # If latency is a custom attribute
 {} | sum_over_time(.latency) by (resource.service)
