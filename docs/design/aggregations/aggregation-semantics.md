@@ -4,6 +4,27 @@
 
 This document analyzes the semantics and syntax nuances of aggregation expressions, metrics operations, and group operations across query languages supported by CommonAST. Understanding these differences is crucial for designing a unified AST representation that preserves semantic correctness while enabling cross-language translation.
 
+## Implementation Phases
+
+### Phase 1: Core Aggregation Functions (Implementation Priority)
+**Scope**: 5 basic aggregate functions for immediate implementation
+- `min()` - Minimum value
+- `max()` - Maximum value  
+- `sum()` - Sum of values
+- `count()` - Count of records
+- `average()` - Average/mean value
+
+**Target**: Full implementation with CommonAST support, cross-language translation, and comprehensive testing.
+
+### Phase 2: Extended Functions & Metrics (Design Only)
+**Scope**: Advanced aggregations and time-series operations
+- **Statistical functions**: `stdev()`, `variance()`, `percentile()`
+- **Collection functions**: `make_list()`, `make_set()`, `dcount()`
+- **Metrics operations**: `sum_over_time()`, `avg_over_time()`, `rate()`
+- **Distribution functions**: `histogram_over_time()`, `quantile_over_time()`
+
+**Status**: Design documented for future implementation, but not included in Phase 1 development.
+
 ## TraceQL Aggregation Semantics
 
 ### Function Categories
@@ -154,19 +175,23 @@ Common syntax errors and their causes:
 
 ### Overview
 
-KQL (Kusto Query Language) provides rich aggregation capabilities through the `summarize` operator and various aggregate functions. Unlike TraceQL's pipeline-based approach, KQL uses a more declarative syntax.
+KQL (Kusto Query Language) provides rich aggregation capabilities through the `summarize` operator and various aggregate functions. Unlike TraceQL's pipeline-based approach, KQL uses a more declarative syntax that combines aggregations and grouping in a single operation.
 
 ### Aggregate Functions
 
-Based on the KQL grammar analysis, KQL supports:
+Based on the KQL grammar analysis and implementation phases:
 
-#### Built-in Aggregates (from `summarizeOperator` grammar)
-- Standard functions: `count()`, `sum()`, `avg()`, `min()`, `max()`
-- Statistical functions: `stdev()`, `variance()`, `percentile()`
-- Collection functions: `make_list()`, `make_set()`, `dcount()`
-- Advanced functions: `arg_max()`, `arg_min()`, `any()`
+#### Phase 1: Core Aggregates (Implementation Priority)
+- **Standard functions**: `count()`, `sum()`, `avg()`, `min()`, `max()`
+- **Result naming**: All functions support `ColumnName = function()` syntax
+- **Field requirements**: All except `count()` require field parameters
 
-#### Time-Based Aggregations
+#### Phase 2: Extended Aggregates (Design Only)
+- **Statistical functions**: `stdev()`, `variance()`, `percentile()`
+- **Collection functions**: `make_list()`, `make_set()`, `dcount()`
+- **Advanced functions**: `arg_max()`, `arg_min()`, `any()`
+
+#### Time-Based Aggregations (Future Consideration)
 - Window functions through `bin()` expressions
 - Time series operations with `make-series` operator
 
@@ -221,6 +246,45 @@ This reveals:
 - **Multiple Aggregations**: Multiple expressions in single operator
 - **Named Expressions**: All results can be named
 - **Legacy Binning**: Historical `bin=` syntax support
+
+### Edge Cases and Special Scenarios
+
+KQL's `summarize` operator supports several important edge cases that CommonAST must handle:
+
+#### Group-Only Operations (No Aggregations)
+```kql
+StormEvents
+| where InjuriesDirect > 0
+| summarize by State, EventType
+```
+
+**Semantics**: Returns distinct combinations of grouping fields with no aggregated values.
+**CommonAST Requirement**: Support empty aggregations list with non-empty grouping fields.
+
+#### Aggregate-Only Operations (No Grouping)
+```kql
+StormEvents
+| where State == "HAWAII" and EventType == "Heavy Rain"
+| project Duration = EndTime - StartTime
+| summarize Min = min(Duration), Max = max(Duration)
+```
+
+**Semantics**: Single row result with multiple aggregated values across entire dataset.
+**CommonAST Requirement**: Support empty grouping list with non-empty aggregations list.
+
+#### Multi-Aggregation with Grouping (Standard Case)
+```kql
+StormEvents
+| summarize TotalCount = count(), AvgDuration = avg(Duration) by State, EventType
+```
+
+**Semantics**: Multiple aggregated values per distinct combination of grouping fields.
+**CommonAST Requirement**: Support both non-empty grouping and aggregations lists.
+
+#### Validation Rules
+- **Must have either aggregations OR grouping (or both)**: `summarize` without any clause is invalid
+- **Named results**: KQL requires explicit column naming for aggregated results
+- **Field types**: Numeric aggregations require compatible field types
 
 ### Cross-Language Mapping Challenges
 

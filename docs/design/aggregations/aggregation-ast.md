@@ -4,6 +4,21 @@
 
 This document outlines the design of CommonAST nodes and patterns to support aggregation expressions, metrics operations, and group operations across TraceQL and KQL. The design is based on the semantic analysis in `aggregation-semantics.md` and aims to provide a unified, engine-agnostic representation while preserving cross-language translation capabilities.
 
+## Implementation Phases
+
+### Phase 1: Core Aggregation Functions (Implementation Priority)
+**Scope**: 5 basic aggregate functions for immediate implementation
+- `min()`, `max()`, `sum()`, `count()`, `average()`
+- Unified `CompositeAggregationNode` supporting both KQL and TraceQL
+- Cross-language translation capabilities
+- Support for group-only, aggregate-only, and mixed operations
+
+### Phase 2: Extended Functions & Metrics (Design Documented)
+**Scope**: Advanced aggregations and time-series operations
+- All metrics operations (`sum_over_time()`, `rate()`, etc.)
+- Statistical functions and collection functions
+- **Status**: Design patterns documented but not implemented until Phase 2
+
 ## Design Principles
 
 ### 1. Engine-Agnostic Representation
@@ -365,38 +380,84 @@ public enum DataType
 }
 ```
 
-### Multi-Operation Support
+### Unified Aggregation Support
 
-#### Composite Operations for KQL
+#### CompositeAggregationNode - Unified for Both Languages
 
 ```csharp
 /// <summary>
-/// Composite operation to handle KQL's multiple aggregations in single summarize
-/// Normalizes to multiple individual operations for cross-language compatibility
+/// Unified node for aggregation operations from both KQL and TraceQL
+/// Handles grouping + aggregations in a single operation
+/// Supports group-only, aggregate-only, and mixed operations
 /// </summary>
 public class CompositeAggregationNode : OperationNode
 {
-    public override NodeKind NodeKind => NodeKind.Query; // Reuse existing
+    public override NodeKind NodeKind => NodeKind.CompositeAggregation;
     
     /// <summary>
-    /// Multiple aggregation operations with shared grouping
+    /// List of fields to group by (optional)
+    /// Empty list = no grouping
+    /// </summary>
+    public List<FieldReference> GroupByFields { get; set; } = new List<FieldReference>();
+    
+    /// <summary>
+    /// List of aggregation operations (optional)
+    /// Empty list = group-only operation
     /// </summary>
     public List<AggregateOperationNode> Aggregations { get; set; } = new List<AggregateOperationNode>();
     
     /// <summary>
-    /// Multiple metrics operations with shared grouping
+    /// Source language context for translation
     /// </summary>
-    public List<MetricsOperationNode> Metrics { get; set; } = new List<MetricsOperationNode>();
+    public string SourceLanguage { get; set; } = "Unknown";
     
     /// <summary>
-    /// Shared grouping for all operations
+    /// Validation: Must have either grouping OR aggregations (or both)
     /// </summary>
-    public GroupOperationNode? SharedGrouping { get; set; }
+    public bool IsValid => GroupByFields.Count > 0 || Aggregations.Count > 0;
     
     /// <summary>
-    /// Source language context
+    /// Operation classification
     /// </summary>
-    public string SourceLanguage { get; set; } = "KQL";
+    public bool IsGroupOnly => Aggregations.Count == 0 && GroupByFields.Count > 0;
+    public bool IsAggregateOnly => Aggregations.Count > 0 && GroupByFields.Count == 0;
+    public bool IsMixed => Aggregations.Count > 0 && GroupByFields.Count > 0;
+}
+
+/// <summary>
+/// Individual aggregate operation within CompositeAggregationNode
+/// </summary>
+public class AggregateOperationNode
+{
+    /// <summary>Phase 1: Only these 5 functions</summary>
+    public required AggregateFunction Function { get; set; }
+    
+    /// <summary>Field to aggregate (null for count())</summary>
+    public FieldReference? Field { get; set; }
+    
+    /// <summary>TraceQL-specific: Comparison for filtering</summary>
+    public ComparisonOperator? ComparisonOp { get; set; }
+    public Expression? ComparisonValue { get; set; }
+    
+    /// <summary>KQL-specific: Result column name</summary>
+    public string? ResultName { get; set; }
+}
+
+/// <summary>
+/// Phase 1 aggregate function types (implementation priority)
+/// </summary>
+public enum AggregateFunction 
+{
+    // Phase 1: Core 5 functions
+    Count,
+    Sum, 
+    Average,
+    Minimum,
+    Maximum
+    
+    // Phase 2: Additional functions (design only, not implemented)
+    // StandardDeviation, Variance, Percentile, DistinctCount,
+    // MakeList, MakeSet, ArgumentMax, ArgumentMin, Any
 }
 ```
 
@@ -575,18 +636,48 @@ public static class AstBuilder
     #region Composite Operations
     
     /// <summary>
-    /// Creates a composite aggregation for KQL multi-aggregate scenarios
+    /// Creates a composite aggregation node (unified for both KQL and TraceQL)
     /// </summary>
     public static CompositeAggregationNode CreateCompositeAggregation(
+        List<FieldReference>? groupByFields = null,
         List<AggregateOperationNode>? aggregations = null,
-        List<MetricsOperationNode>? metrics = null,
-        GroupOperationNode? sharedGrouping = null)
+        string sourceLanguage = "Unknown")
     {
         return new CompositeAggregationNode
         {
+            GroupByFields = groupByFields ?? new List<FieldReference>(),
             Aggregations = aggregations ?? new List<AggregateOperationNode>(),
-            Metrics = metrics ?? new List<MetricsOperationNode>(),
-            SharedGrouping = sharedGrouping
+            SourceLanguage = sourceLanguage
+        };
+    }
+    
+    /// <summary>
+    /// Creates a group-only composite aggregation (KQL: summarize by fields)
+    /// </summary>
+    public static CompositeAggregationNode CreateGroupOnlyAggregation(
+        List<FieldReference> groupByFields,
+        string sourceLanguage = "KQL")
+    {
+        return new CompositeAggregationNode
+        {
+            GroupByFields = groupByFields,
+            Aggregations = new List<AggregateOperationNode>(), // Empty = group-only
+            SourceLanguage = sourceLanguage
+        };
+    }
+    
+    /// <summary>
+    /// Creates an aggregate-only composite aggregation (KQL: summarize aggregates)
+    /// </summary>
+    public static CompositeAggregationNode CreateAggregateOnlyAggregation(
+        List<AggregateOperationNode> aggregations,
+        string sourceLanguage = "KQL")
+    {
+        return new CompositeAggregationNode
+        {
+            GroupByFields = new List<FieldReference>(), // Empty = no grouping
+            Aggregations = aggregations,
+            SourceLanguage = sourceLanguage
         };
     }
     
@@ -682,77 +773,142 @@ public class KQLNormalizer
 }
 ```
 
-## Usage Examples
+## Examples by Scenario
 
-### TraceQL Query Representations
-
-#### Example 1: Explicit Grouping
-```traceql
-{} | by (resource.service) | sum(.latency) > 100
-```
-
-**CommonAST Representation:**
-```csharp
-var query = AstBuilder.CreateQuery();
-
-// Group operation
-var groupOp = AstBuilder.CreateGroupOperation("resource.service");
-query.Operations.Add(groupOp);
-
-// Aggregate operation  
-var aggregateOp = AstBuilder.CreateSumOperation(
-    AstBuilder.CreateFieldReferenceFromPath(".latency"),
-    ComparisonOperator.GreaterThan,
-    AstBuilder.CreateLiteral(100, LiteralKind.Integer));
-query.Operations.Add(aggregateOp);
-```
-
-#### Example 2: Implicit Grouping (Normalized)
-```traceql
-{} | sum_over_time(.latency) by (resource.service)
-```
-
-**CommonAST Representation (After Normalization):**
-```csharp
-var query = AstBuilder.CreateQuery();
-
-// Normalized to explicit grouping
-var groupOp = AstBuilder.CreateGroupOperation("resource.service");
-query.Operations.Add(groupOp);
-
-// Metrics operation (grouping removed)
-var metricsOp = AstBuilder.CreateSumOverTimeOperation(
-    AstBuilder.CreateFieldReferenceFromPath(".latency"));
-query.Operations.Add(metricsOp);
-```
-
-### KQL Query Representations
-
-#### Example 3: KQL Summarize
+### Example 1: KQL Multi-Aggregation with Grouping
 ```kql
-| summarize TotalCount = count(), AvgDuration = avg(Duration) by ResourceGroup
+| summarize TotalCount = count(), AvgDuration = avg(Duration) by State, EventType
 ```
 
-**CommonAST Representation (After Normalization):**
+**AST:**
 ```csharp
-var query = AstBuilder.CreateQuery();
+var node = new CompositeAggregationNode
+{
+    SourceLanguage = "KQL",
+    GroupByFields = [
+        new FieldReference { Name = "State" },
+        new FieldReference { Name = "EventType" }
+    ],
+    Aggregations = [
+        new AggregateOperationNode {
+            Function = AggregateFunction.Count,
+            Field = null,  // count() has no field
+            ResultName = "TotalCount",
+            ComparisonOp = null,  // KQL doesn't use comparisons
+            ComparisonValue = null
+        },
+        new AggregateOperationNode {
+            Function = AggregateFunction.Average,
+            Field = new FieldReference { Name = "Duration" },
+            ResultName = "AvgDuration",
+            ComparisonOp = null,
+            ComparisonValue = null
+        }
+    ]
+};
 
-// Shared grouping
-var groupOp = AstBuilder.CreateGroupOperation("ResourceGroup");
-query.Operations.Add(groupOp);
-
-// First aggregation
-var countOp = AstBuilder.CreateCountOperation();
-countOp.ResultName = "TotalCount";
-query.Operations.Add(countOp);
-
-// Second aggregation
-var avgOp = AstBuilder.CreateAggregateOperation(
-    AggregateFunction.Average,
-    AstBuilder.CreateFieldReference("Duration"));
-avgOp.ResultName = "AvgDuration";
-query.Operations.Add(avgOp);
+// node.IsMixed == true (has both grouping and aggregations)
 ```
+
+### Example 2: KQL Group-Only Operation
+```kql
+| summarize by State, EventType
+```
+
+**AST:**
+```csharp
+var node = new CompositeAggregationNode
+{
+    SourceLanguage = "KQL",
+    GroupByFields = [
+        new FieldReference { Name = "State" },
+        new FieldReference { Name = "EventType" }
+    ],
+    Aggregations = []  // ✅ Empty list = group-only
+};
+
+// node.IsGroupOnly == true
+// node.IsValid == true (has grouping)
+```
+
+### Example 3: KQL Aggregate-Only Operation
+```kql
+| summarize Min = min(Duration), Max = max(Duration)
+```
+
+**AST:**
+```csharp
+var node = new CompositeAggregationNode
+{
+    SourceLanguage = "KQL",
+    GroupByFields = [],  // ✅ Empty list = no grouping
+    Aggregations = [
+        new AggregateOperationNode {
+            Function = AggregateFunction.Minimum,
+            Field = new FieldReference { Name = "Duration" },
+            ResultName = "Min",
+            ComparisonOp = null,
+            ComparisonValue = null
+        },
+        new AggregateOperationNode {
+            Function = AggregateFunction.Maximum,
+            Field = new FieldReference { Name = "Duration" },
+            ResultName = "Max",
+            ComparisonOp = null,
+            ComparisonValue = null
+        }
+    ]
+};
+
+// node.IsAggregateOnly == true
+// node.IsValid == true (has aggregations)
+```
+
+### Example 4: TraceQL Pipeline (Normalized to Same AST)
+```traceql
+{} | by (resource.service) | sum(.latency) > 100 | count() > 5
+```
+
+**Same AST Structure:**
+```csharp
+var node = new CompositeAggregationNode
+{
+    SourceLanguage = "TraceQL",
+    GroupByFields = [
+        new FieldReference { 
+            Name = "service", 
+            Namespace = "resource" 
+        }
+    ],
+    Aggregations = [
+        new AggregateOperationNode {
+            Function = AggregateFunction.Sum,
+            Field = new FieldReference { Name = "latency" },
+            ComparisonOp = ComparisonOperator.GreaterThan,  // TraceQL-specific
+            ComparisonValue = new Literal { Value = 100 },
+            ResultName = null  // TraceQL doesn't name results
+        },
+        new AggregateOperationNode {
+            Function = AggregateFunction.Count,
+            Field = null,
+            ComparisonOp = ComparisonOperator.GreaterThan,
+            ComparisonValue = new Literal { Value = 5 },
+            ResultName = null
+        }
+    ]
+};
+
+// node.IsMixed == true (has both grouping and aggregations)
+// Note: Same unified structure regardless of source language!
+```
+
+### Key Benefits of Unified Approach
+
+1. **Unified Structure**: Same AST regardless of source language
+2. **Flexible**: Handles all scenarios (group-only, aggregate-only, mixed)
+3. **Language-Aware**: Preserves language-specific properties
+4. **Validation**: Clear rules for valid operations (`IsValid` property)
+5. **Translation-Ready**: Easy to convert between languages
 
 ## Cross-Language Translation
 
