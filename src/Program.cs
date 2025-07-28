@@ -3,15 +3,22 @@ using Kusto.Language;
 using Kusto.Language.Symbols;
 using Kusto.Language.Editor;
 using Kusto.Language.Syntax;
+using CommonAST.Tools;
 
 public class KQLParse
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         if (args.Length == 0)
         {
-            Console.WriteLine("Usage: CommonAST.exe <KQLQuery> [--output <outputPath>] [--multi]");
-            Console.WriteLine("  --multi   Treat input as multiple queries separated by $$ with span filters in []");
+            ShowUsage();
+            return;
+        }
+
+        // Check if this is a KQL tester command
+        if (args[0] == "kql-test")
+        {
+            await HandleKqlTestCommand(args.Skip(1).ToArray());
             return;
         }
 
@@ -244,6 +251,146 @@ public class KQLParse
                 foreach (var item in specOpExpr.Right)
                     GenerateGraphvizForCommonAST(item, writer, nodeId);
                 break;
+        }
+    }
+
+    #endregion
+
+    #region KQL Tester Integration
+
+    static void ShowUsage()
+    {
+        Console.WriteLine("CommonAST - Query Language Processing & AST Transformation");
+        Console.WriteLine();
+        Console.WriteLine("Usage:");
+        Console.WriteLine("  CommonAST.exe <KQLQuery> [--output <outputPath>] [--multi]");
+        Console.WriteLine("  CommonAST.exe kql-test [options] <query|--file|--interactive>");
+        Console.WriteLine();
+        Console.WriteLine("Standard Mode:");
+        Console.WriteLine("  <KQLQuery>        KQL query to parse and convert to CommonAST");
+        Console.WriteLine("  --output <path>   Output path for Graphviz files (default: syntax_tree.dot)");
+        Console.WriteLine("  --multi           Treat input as multiple queries separated by $$ with span filters in []");
+        Console.WriteLine();
+        Console.WriteLine("KQL Tester Mode:");
+        Console.WriteLine("  kql-test \"query\"        Test a KQL query string");
+        Console.WriteLine("  kql-test --file <file>   Test a query from a file");
+        Console.WriteLine("  kql-test --interactive   Interactive mode");
+        Console.WriteLine();
+        Console.WriteLine("KQL Tester Options:");
+        Console.WriteLine("  --svg                    Generate SVG output");
+        Console.WriteLine("  --ast                    Show CommonAST output");
+        Console.WriteLine("  --json                   Format AST as JSON");
+        Console.WriteLine("  --output <filename>      Specify output filename for SVG");
+        Console.WriteLine("  --quiet                  Suppress informational output");
+        Console.WriteLine();
+        Console.WriteLine("Examples:");
+        Console.WriteLine("  CommonAST.exe \"MyTable | where x > 10\"");
+        Console.WriteLine("  CommonAST.exe kql-test \"Events | where Level == 'Error'\"");
+        Console.WriteLine("  CommonAST.exe kql-test --file my-query.kql --svg --ast");
+        Console.WriteLine("  CommonAST.exe kql-test --interactive");
+    }
+
+    static async Task HandleKqlTestCommand(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.WriteLine("Error: No arguments provided for kql-test command");
+            Console.WriteLine();
+            ShowUsage();
+            return;
+        }
+
+        // Parse KQL test options
+        var options = new KqlTestOptions();
+        string? query = null;
+        string? filename = null;
+        bool interactive = false;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--svg":
+                    options.GenerateSvg = true;
+                    break;
+                case "--ast":
+                    options.ShowAst = true;
+                    break;
+                case "--json":
+                    options.AstAsJson = true;
+                    break;
+                case "--quiet":
+                    options.Quiet = true;
+                    break;
+                case "--interactive":
+                    interactive = true;
+                    break;
+                case "--file":
+                    if (i + 1 < args.Length)
+                    {
+                        filename = args[i + 1];
+                        i++; // Skip the filename argument
+                    }
+                    else
+                    {
+                        Console.WriteLine("Error: --file requires a filename");
+                        return;
+                    }
+                    break;
+                case "--output":
+                    if (i + 1 < args.Length)
+                    {
+                        options.OutputFilename = args[i + 1];
+                        i++; // Skip the filename argument
+                    }
+                    else
+                    {
+                        Console.WriteLine("Error: --output requires a filename");
+                        return;
+                    }
+                    break;
+                default:
+                    // If it doesn't start with --, treat it as the query
+                    if (!args[i].StartsWith("--"))
+                    {
+                        query = args[i];
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Error: Unknown option: {args[i]}");
+                        return;
+                    }
+                    break;
+            }
+        }
+
+        // Execute the appropriate mode
+        try
+        {
+            if (interactive)
+            {
+                await KqlTester.RunInteractiveMode();
+            }
+            else if (!string.IsNullOrEmpty(filename))
+            {
+                var success = KqlTester.TestQueryFromFile(filename, options);
+                Environment.Exit(success ? 0 : 1);
+            }
+            else if (!string.IsNullOrEmpty(query))
+            {
+                var success = KqlTester.TestQuery(query, options);
+                Environment.Exit(success ? 0 : 1);
+            }
+            else
+            {
+                Console.WriteLine("Error: No query, file, or interactive mode specified");
+                ShowUsage();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Fatal error: {ex.Message}");
+            Environment.Exit(1);
         }
     }
 
