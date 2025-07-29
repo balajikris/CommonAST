@@ -22,6 +22,13 @@ public class KQLParse
             return;
         }
 
+        // Check if this is a metadata explorer command
+        if (args[0] == "kql-explore")
+        {
+            await HandleKqlExploreCommand(args.Skip(1).ToArray());
+            return;
+        }
+
         // First argument is the KQL query
         var query = args[0];
 
@@ -265,6 +272,7 @@ public class KQLParse
         Console.WriteLine("Usage:");
         Console.WriteLine("  CommonAST.exe <KQLQuery> [--output <outputPath>] [--multi]");
         Console.WriteLine("  CommonAST.exe kql-test [options] <query|--file|--interactive>");
+        Console.WriteLine("  CommonAST.exe kql-explore [--interactive|--examples]");
         Console.WriteLine();
         Console.WriteLine("Standard Mode:");
         Console.WriteLine("  <KQLQuery>        KQL query to parse and convert to CommonAST");
@@ -275,6 +283,11 @@ public class KQLParse
         Console.WriteLine("  kql-test \"query\"        Test a KQL query string");
         Console.WriteLine("  kql-test --file <file>   Test a query from a file");
         Console.WriteLine("  kql-test --interactive   Interactive mode");
+        Console.WriteLine();
+        Console.WriteLine("KQL Metadata Explorer Mode:");
+        Console.WriteLine("  kql-explore --examples       Run predefined field metadata tests");
+        Console.WriteLine("  kql-explore --interactive     Interactive field metadata exploration");
+        Console.WriteLine("  kql-explore \"query\"           Explore metadata for a specific query");
         Console.WriteLine();
         Console.WriteLine("KQL Tester Options:");
         Console.WriteLine("  --svg                    Generate SVG output");
@@ -288,6 +301,8 @@ public class KQLParse
         Console.WriteLine("  CommonAST.exe kql-test \"Events | where Level == 'Error'\"");
         Console.WriteLine("  CommonAST.exe kql-test --file my-query.kql --svg --ast");
         Console.WriteLine("  CommonAST.exe kql-test --interactive");
+        Console.WriteLine("  CommonAST.exe kql-explore --examples");
+        Console.WriteLine("  CommonAST.exe kql-explore --interactive");
     }
 
     static async Task HandleKqlTestCommand(string[] args)
@@ -390,6 +405,67 @@ public class KQLParse
         catch (Exception ex)
         {
             Console.WriteLine($"Fatal error: {ex.Message}");
+            Environment.Exit(1);
+        }
+    }
+
+    #endregion
+
+    #region KQL Metadata Explorer Integration
+
+    static async Task HandleKqlExploreCommand(string[] args)
+    {
+        try
+        {
+            if (args.Length == 0 || (args.Length == 1 && args[0] == "--examples"))
+            {
+                // Run predefined examples
+                KqlMetadataExplorer.ExploreFieldMetadata();
+                return;
+            }
+
+            if (args.Length == 1 && args[0] == "--interactive")
+            {
+                // Run interactive mode
+                await KqlMetadataExplorer.RunInteractiveExplorer();
+                return;
+            }
+
+            if (args.Length == 1 && !args[0].StartsWith("--"))
+            {
+                // Explore a specific query
+                Console.WriteLine($"🔍 Exploring KQL Query: {args[0]}");
+                Console.WriteLine(new string('=', 50));
+                
+                var code = KustoCode.Parse(args[0]);
+                Console.WriteLine("📋 Basic Parse Information:");
+                Console.WriteLine($"   Kind: {code.Kind}");
+                Console.WriteLine($"   Syntax Type: {code.Syntax?.GetType().Name}");
+                
+                var syntaxDiagnostics = code.GetSyntaxDiagnostics();
+                Console.WriteLine($"   Syntax Errors: {syntaxDiagnostics.Count}");
+
+                if (syntaxDiagnostics.Count > 0)
+                {
+                    Console.WriteLine("❌ Syntax errors found:");
+                    foreach (var diagnostic in syntaxDiagnostics)
+                    {
+                        Console.WriteLine($"   - {diagnostic.Message} (at position {diagnostic.Start})");
+                    }
+                    return;
+                }
+
+                // Use our explorer to analyze the query
+                return;
+            }
+
+            Console.WriteLine("Error: Invalid arguments for kql-explore command");
+            Console.WriteLine();
+            ShowUsage();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Fatal error in metadata explorer: {ex.Message}");
             Environment.Exit(1);
         }
     }
