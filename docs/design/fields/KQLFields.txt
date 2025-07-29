@@ -1,0 +1,374 @@
+🔍 KQL Metadata Explorer
+========================
+
+Testing Query: Simple Field Reference
+KQL: MyTable | where ColumnName == "test"
+------------------------------------------------------------
+📋 Basic Parse Information:
+   Kind: Query
+   Syntax Type: QueryBlock
+   Syntax Errors: 0
+   Semantic Analysis: Checking...
+
+🎯 Symbol Information:
+   Global Symbols Available: Yes
+   Global Type: GlobalState
+   Database:
+   Tables Count: 0
+
+📝 NameReference Analysis:
+   NameReference: MyTable
+     Name: MyTable
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: ColumnName
+     Name:  ColumnName
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+
+🔗 Other Field-Related Nodes:
+   PathExpression nodes: 0
+   ElementExpression nodes: 0
+   BracketedExpression nodes: 0
+   FunctionCallExpression nodes: 0
+
+Testing Query: Multiple Fields
+KQL: Events | where Level == "Error" and EventId > 1000
+------------------------------------------------------------
+📋 Basic Parse Information:
+   Kind: Query
+   Syntax Type: QueryBlock
+   Syntax Errors: 0
+   Semantic Analysis: Checking...
+
+🎯 Symbol Information:
+   Global Symbols Available: Yes
+   Global Type: GlobalState
+   Database:
+   Tables Count: 0
+
+📝 NameReference Analysis:
+   NameReference: Events
+     Name: Events
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Level
+     Name:  Level
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: EventId
+     Name:  EventId
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+
+🔗 Other Field-Related Nodes:
+   PathExpression nodes: 0
+   ElementExpression nodes: 0
+   BracketedExpression nodes: 0
+   FunctionCallExpression nodes: 0
+
+Testing Query: Aggregation Fields
+KQL: Logs | summarize count() by Level, Category
+------------------------------------------------------------
+📋 Basic Parse Information:
+   Kind: Query
+   Syntax Type: QueryBlock
+   Syntax Errors: 0
+   Semantic Analysis: Checking...
+
+🎯 Symbol Information:
+   Global Symbols Available: Yes
+   Global Type: GlobalState
+   Database:
+   Tables Count: 0
+
+📝 NameReference Analysis:
+   NameReference: Logs
+     Name: Logs
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: count
+     Name:  count
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Level
+     Name:  Level
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Category
+     Name:  Category
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+
+🔗 Other Field-Related Nodes:
+   PathExpression nodes: 0
+   ElementExpression nodes: 0
+   BracketedExpression nodes: 0
+   FunctionCallExpression nodes: 1
+     Function:  count (Result Type: )
+
+Testing Query: Function with Fields
+KQL: Data | where strlen(Message) > 10
+------------------------------------------------------------
+📋 Basic Parse Information:
+   Kind: Query
+   Syntax Type: QueryBlock
+   Syntax Errors: 0
+   Semantic Analysis: Checking...
+
+🎯 Symbol Information:
+   Global Symbols Available: Yes
+   Global Type: GlobalState
+   Database:
+   Tables Count: 0
+
+📝 NameReference Analysis:
+   NameReference: Data
+     Name: Data
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: strlen
+     Name:  strlen
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Message
+     Name: Message
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+
+🔗 Other Field-Related Nodes:
+   PathExpression nodes: 0
+   ElementExpression nodes: 0
+   BracketedExpression nodes: 0
+   FunctionCallExpression nodes: 1
+     Function:  strlen (Result Type: )
+
+Testing Query: Qualified Reference
+KQL: T | where T.Field > 100
+------------------------------------------------------------
+📋 Basic Parse Information:
+   Kind: Query
+   Syntax Type: QueryBlock
+   Syntax Errors: 0
+   Semantic Analysis: Checking...
+
+🎯 Symbol Information:
+   Global Symbols Available: Yes
+   Global Type: GlobalState
+   Database:
+   Tables Count: 0
+
+📝 NameReference Analysis:
+   NameReference: T
+     Name: T
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: T
+     Name:  T
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Field
+     Name: Field
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+
+🔗 Other Field-Related Nodes:
+   PathExpression nodes: 1
+     Path: Field (Type: )
+   ElementExpression nodes: 0
+   BracketedExpression nodes: 0
+   FunctionCallExpression nodes: 0
+
+Testing Query: Complex Expression
+KQL: Metrics | where Value > avg(Value) and Category != "test"
+------------------------------------------------------------
+📋 Basic Parse Information:
+   Kind: Query
+   Syntax Type: QueryBlock
+   Syntax Errors: 0
+   Semantic Analysis: Checking...
+
+🎯 Symbol Information:
+   Global Symbols Available: Yes
+   Global Type: GlobalState
+   Database:
+   Tables Count: 0
+
+📝 NameReference Analysis:
+   NameReference: Metrics
+     Name: Metrics
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Value
+     Name:  Value
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: avg
+     Name:  avg
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Value
+     Name: Value
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Category
+     Name:  Category
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+
+🔗 Other Field-Related Nodes:
+   PathExpression nodes: 0
+   ElementExpression nodes: 0
+   BracketedExpression nodes: 0
+   FunctionCallExpression nodes: 1
+     Function:  avg (Result Type: )
+
+Testing Query: Time Field
+KQL: Events | where Timestamp > ago(1h)
+------------------------------------------------------------
+📋 Basic Parse Information:
+   Kind: Query
+   Syntax Type: QueryBlock
+   Syntax Errors: 0
+   Semantic Analysis: Checking...
+
+🎯 Symbol Information:
+   Global Symbols Available: Yes
+   Global Type: GlobalState
+   Database:
+   Tables Count: 0
+
+📝 NameReference Analysis:
+   NameReference: Events
+     Name: Events
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Timestamp
+     Name:  Timestamp
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: ago
+     Name:  ago
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+
+🔗 Other Field-Related Nodes:
+   PathExpression nodes: 0
+   ElementExpression nodes: 0
+   BracketedExpression nodes: 0
+   FunctionCallExpression nodes: 1
+     Function:  ago (Result Type: )
+
+Testing Query: Nested Reference
+KQL: Logs | where User.Name == "admin"
+------------------------------------------------------------
+📋 Basic Parse Information:
+   Kind: Query
+   Syntax Type: QueryBlock
+   Syntax Errors: 0
+   Semantic Analysis: Checking...
+
+🎯 Symbol Information:
+   Global Symbols Available: Yes
+   Global Type: GlobalState
+   Database:
+   Tables Count: 0
+
+📝 NameReference Analysis:
+   NameReference: Logs
+     Name: Logs
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: User
+     Name:  User
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+   NameReference: Name
+     Name: Name
+     Name Type: TokenName
+     Referenced Symbol: null
+     Result Type: null
+     Is Constant: False
+     Syntax Node Kind: NameReference
+
+🔗 Other Field-Related Nodes:
+   PathExpression nodes: 1
+     Path: Name (Type: )
+   ElementExpression nodes: 0
+   BracketedExpression nodes: 0
+   FunctionCallExpression nodes: 0
