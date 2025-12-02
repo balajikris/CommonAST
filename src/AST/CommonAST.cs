@@ -16,7 +16,12 @@ public enum NodeKind
     ParenthesizedExpression,
     SpecialOperatorExpression,
     WildcardExpression,
-    PathExpression
+    PathExpression,
+    
+    // Phase 1: Aggregation support
+    FieldReference,
+    NamedExpression,
+    CompositeAggregation
 }
 
 /// <summary>
@@ -309,6 +314,164 @@ public class PathExpression : Expression
     public required string Path { get; set; }
 }
 
+#region Phase 1: Aggregation Support
+
+/// <summary>
+/// Field categorization for different data sources
+/// </summary>
+public enum FieldType
+{
+    Intrinsic,    // Built-in fields (duration, name, etc.)
+    Attribute,    // Custom attributes
+    Metadata,     // System metadata
+    Computed      // Derived/computed fields
+}
+
+/// <summary>
+/// Data types for field validation
+/// </summary>
+public enum DataType
+{
+    String,
+    Integer,
+    Float,
+    Boolean,
+    Duration,
+    DateTime,
+    Array,
+    Object,
+    Unknown
+}
+
+/// <summary>
+/// Phase 1 aggregate function types (implementation priority)
+/// </summary>
+public enum AggregateFunction 
+{
+    // Phase 1: Core 5 functions
+    Count,
+    Sum, 
+    Average,
+    Minimum,
+    Maximum
+    
+    // Phase 2: Additional functions (design only, not implemented)
+    // StandardDeviation, Variance, Percentile, DistinctCount,
+    // MakeList, MakeSet, ArgumentMax, ArgumentMin, Any
+}
+
+/// <summary>
+/// Enhanced field reference with namespace support for cross-language compatibility
+/// Inherits from Identifier and adds aggregation-specific metadata
+/// </summary>
+public class FieldReference : Identifier
+{
+    public override NodeKind NodeKind => NodeKind.FieldReference;
+    
+    /// <summary>
+    /// Field type for validation and optimization
+    /// </summary>
+    public FieldType FieldType { get; set; } = FieldType.Attribute;
+    
+    /// <summary>
+    /// Data type of the field
+    /// </summary>
+    public DataType? DataType { get; set; }
+    
+    /// <summary>
+    /// Whether this field is required for the operation
+    /// </summary>
+    public bool IsRequired { get; set; } = true;
+}
+
+/// <summary>
+/// Represents a named expression used in project, extend, summarize and other operators
+/// Supports both single names and multiple names: name = expr, (name1, name2) = expr
+/// </summary>
+public class NamedExpression : Expression
+{
+    public override NodeKind NodeKind => NodeKind.NamedExpression;
+    
+    /// <summary>
+    /// Single result name (most common case)
+    /// </summary>
+    public string? Name { get; set; }
+    
+    /// <summary>
+    /// Multiple result names for tuple destructuring: (name1, name2) = expr
+    /// </summary>
+    public List<string>? Names { get; set; }
+    
+    /// <summary>
+    /// The expression being named
+    /// </summary>
+    public required Expression Expression { get; set; }
+    
+    /// <summary>
+    /// True if this expression has explicit naming
+    /// </summary>
+    public bool IsNamed => Name != null || (Names != null && Names.Count > 0);
+}
+
+/// <summary>
+/// Individual aggregate operation within CompositeAggregationNode
+/// </summary>
+public class AggregateOperationNode
+{
+    /// <summary>Phase 1: Only these 5 functions</summary>
+    public required AggregateFunction Function { get; set; }
+    
+    /// <summary>Field to aggregate (null for count())</summary>
+    public FieldReference? Field { get; set; }
+    
+    /// <summary>KQL-specific: Result column name</summary>
+    public string? ResultName { get; set; }
+    
+    /// <summary>Source expression for complex aggregations</summary>
+    public Expression? SourceExpression { get; set; }
+}
+
+/// <summary>
+/// Unified node for aggregation operations from both KQL and TraceQL
+/// Handles grouping + aggregations in a single operation
+/// Supports group-only, aggregate-only, and mixed operations
+/// </summary>
+public class CompositeAggregationNode : OperationNode
+{
+    public override NodeKind NodeKind => NodeKind.CompositeAggregation;
+    
+    /// <summary>
+    /// List of fields to group by (optional)
+    /// Empty list = no grouping
+    /// </summary>
+    public List<FieldReference> GroupByFields { get; set; } = new List<FieldReference>();
+    
+    /// <summary>
+    /// List of aggregation operations (optional)
+    /// Empty list = group-only operation
+    /// </summary>
+    public List<AggregateOperationNode> Aggregations { get; set; } = new List<AggregateOperationNode>();
+    
+    /// <summary>
+    /// Source language context for translation
+    /// </summary>
+    public string SourceLanguage { get; set; } = "Unknown";
+    
+    /// <summary>
+    /// Validation: Must have either grouping OR aggregations (or both)
+    /// </summary>
+    public bool IsValid => GroupByFields.Count > 0 || Aggregations.Count > 0;
+    
+    /// <summary>
+    /// Operation classification
+    /// </summary>
+    public bool IsGroupOnly => Aggregations.Count == 0 && GroupByFields.Count > 0;
+    public bool IsAggregateOnly => Aggregations.Count > 0 && GroupByFields.Count == 0;
+    public bool IsMixed => Aggregations.Count > 0 && GroupByFields.Count > 0;
+}
+
+#endregion
+
 /// <summary>
 /// Builder for creating AST nodes
 /// </summary>
@@ -443,6 +606,156 @@ public static class AstBuilder
             Right = right
         };
     }
+
+    #region Phase 1: Aggregation Builder Methods
+
+    /// <summary>
+    /// Creates a field reference with namespace support
+    /// </summary>
+    public static FieldReference CreateFieldReference(
+        string name,
+        string? nameSpace = null,
+        FieldType fieldType = FieldType.Attribute,
+        DataType? dataType = null)
+    {
+        return new FieldReference
+        {
+            Name = name,
+            Namespace = nameSpace,
+            FieldType = fieldType,
+            DataType = dataType
+        };
+    }
+
+    /// <summary>
+    /// Creates a named expression
+    /// </summary>
+    public static NamedExpression CreateNamedExpression(
+        Expression expression,
+        string? name = null,
+        List<string>? names = null)
+    {
+        return new NamedExpression
+        {
+            Expression = expression,
+            Name = name,
+            Names = names
+        };
+    }
+
+    /// <summary>
+    /// Creates an aggregate operation node
+    /// </summary>
+    public static AggregateOperationNode CreateAggregateOperation(
+        AggregateFunction function,
+        FieldReference? field = null,
+        string? resultName = null,
+        Expression? sourceExpression = null)
+    {
+        return new AggregateOperationNode
+        {
+            Function = function,
+            Field = field,
+            ResultName = resultName,
+            SourceExpression = sourceExpression
+        };
+    }
+
+    /// <summary>
+    /// Creates a composite aggregation node (unified for both KQL and TraceQL)
+    /// </summary>
+    public static CompositeAggregationNode CreateCompositeAggregation(
+        List<FieldReference>? groupByFields = null,
+        List<AggregateOperationNode>? aggregations = null,
+        string sourceLanguage = "Unknown")
+    {
+        return new CompositeAggregationNode
+        {
+            GroupByFields = groupByFields ?? new List<FieldReference>(),
+            Aggregations = aggregations ?? new List<AggregateOperationNode>(),
+            SourceLanguage = sourceLanguage
+        };
+    }
+
+    /// <summary>
+    /// Creates a group-only composite aggregation (KQL: summarize by fields)
+    /// </summary>
+    public static CompositeAggregationNode CreateGroupOnlyAggregation(
+        List<FieldReference> groupByFields,
+        string sourceLanguage = "KQL")
+    {
+        return new CompositeAggregationNode
+        {
+            GroupByFields = groupByFields,
+            Aggregations = new List<AggregateOperationNode>(), // Empty = group-only
+            SourceLanguage = sourceLanguage
+        };
+    }
+
+    /// <summary>
+    /// Creates an aggregate-only composite aggregation (KQL: summarize aggregates)
+    /// </summary>
+    public static CompositeAggregationNode CreateAggregateOnlyAggregation(
+        List<AggregateOperationNode> aggregations,
+        string sourceLanguage = "KQL")
+    {
+        return new CompositeAggregationNode
+        {
+            GroupByFields = new List<FieldReference>(), // Empty = no grouping
+            Aggregations = aggregations,
+            SourceLanguage = sourceLanguage
+        };
+    }
+
+    /// <summary>
+    /// Creates a count aggregate operation
+    /// </summary>
+    public static AggregateOperationNode CreateCountOperation(string? resultName = null)
+    {
+        return CreateAggregateOperation(AggregateFunction.Count, null, resultName);
+    }
+
+    /// <summary>
+    /// Creates a sum aggregate operation
+    /// </summary>
+    public static AggregateOperationNode CreateSumOperation(
+        FieldReference field,
+        string? resultName = null)
+    {
+        return CreateAggregateOperation(AggregateFunction.Sum, field, resultName);
+    }
+
+    /// <summary>
+    /// Creates an average aggregate operation
+    /// </summary>
+    public static AggregateOperationNode CreateAverageOperation(
+        FieldReference field,
+        string? resultName = null)
+    {
+        return CreateAggregateOperation(AggregateFunction.Average, field, resultName);
+    }
+
+    /// <summary>
+    /// Creates a minimum aggregate operation
+    /// </summary>
+    public static AggregateOperationNode CreateMinimumOperation(
+        FieldReference field,
+        string? resultName = null)
+    {
+        return CreateAggregateOperation(AggregateFunction.Minimum, field, resultName);
+    }
+
+    /// <summary>
+    /// Creates a maximum aggregate operation
+    /// </summary>
+    public static AggregateOperationNode CreateMaximumOperation(
+        FieldReference field,
+        string? resultName = null)
+    {
+        return CreateAggregateOperation(AggregateFunction.Maximum, field, resultName);
+    }
+
+    #endregion
 }
 
 /// <summary>

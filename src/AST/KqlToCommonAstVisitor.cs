@@ -43,6 +43,9 @@ public class KqlToCommonAstVisitor
             case SyntaxKind.FilterOperator:
                 VisitFilterOperator(node as FilterOperator);
                 break;
+            case SyntaxKind.SummarizeOperator:
+                VisitSummarizeOperator(node as SummarizeOperator);
+                break;
             // Handle all binary expression types
             case SyntaxKind.EqualExpression:
             case SyntaxKind.NotEqualExpression:
@@ -73,6 +76,9 @@ public class KqlToCommonAstVisitor
                 break;
             case SyntaxKind.ParenthesizedExpression:
                 VisitParenthesizedExpression(node as Kusto.Language.Syntax.ParenthesizedExpression);
+                break;
+            case SyntaxKind.FunctionCallExpression:
+                VisitFunctionCallExpression(node as FunctionCallExpression);
                 break;
             default:
                 // other node types are not yet implemented, just default to visiting the children for now
@@ -290,37 +296,37 @@ public class KqlToCommonAstVisitor
     //     }
     // }
 
-    // private void VisitFunctionCallExpression(Kusto.Language.Syntax.FunctionCallExpression node)
-    // {
-    //     if (node == null) return;
+    private void VisitFunctionCallExpression(FunctionCallExpression node)
+    {
+        if (node == null) return;
 
-    //     string functionName = "unknown";
-    //     if (node.Name is Kusto.Language.Syntax.NameReference nameRef)
-    //     {
-    //         functionName = nameRef.Name.Text;
-    //     }
+        string functionName = "unknown";
+        if (node.Name is NameReference nameRef)
+        {
+            functionName = nameRef.Name.SimpleName;
+        }
 
-    //     var arguments = new List<Expression>();
+        var arguments = new List<Expression>();
 
-    //     // Process arguments
-    //     if (node.ArgumentList != null)
-    //     {
-    //         foreach (var arg in node.ArgumentList.Expressions)
-    //         {
-    //             Visit(arg);
-    //             if (_expressionStack.Count > 0)
-    //             {
-    //                 arguments.Add(_expressionStack.Pop());
-    //             }
-    //         }
-    //     }
+        // Process arguments
+        if (node.ArgumentList != null)
+        {
+            foreach (var arg in node.ArgumentList.Expressions)
+            {
+                Visit(arg.Element);
+                if (_expressionStack.Count > 0)
+                {
+                    arguments.Add(_expressionStack.Pop());
+                }
+            }
+        }
 
-    //     // Reverse the arguments since we process them in reverse order
-    //     arguments.Reverse();
+        // Reverse the arguments since we process them in reverse order
+        arguments.Reverse();
 
-    //     var callExpr = AstBuilder.CreateCallExpression(functionName, arguments);
-    //     _expressionStack.Push(callExpr);
-    // }
+        var callExpr = AstBuilder.CreateCallExpression(functionName, arguments);
+        _expressionStack.Push(callExpr);
+    }
 
     // private void VisitInExpression(Kusto.Language.Syntax.InExpression node)
     // {
@@ -357,6 +363,28 @@ public class KqlToCommonAstVisitor
     //         _expressionStack.Push(specialOp);
     //     }
     // }
+
+    #region Phase 1: Aggregation Support
+
+    /// <summary>
+    /// Visits a KQL summarize operator and creates CompositeAggregationNode
+    /// TODO: Implement full summarize operator parsing once KQL syntax structure is verified
+    /// </summary>
+    private void VisitSummarizeOperator(SummarizeOperator node)
+    {
+        if (node == null) return;
+
+        // For now, create a placeholder aggregation node
+        // TODO: Parse actual summarize structure from KQL syntax tree
+        var compositeAggregation = AstBuilder.CreateCompositeAggregation(
+            null, // groupByFields - to be implemented
+            null, // aggregations - to be implemented  
+            "KQL");
+
+        _rootNode.Operations.Add(compositeAggregation);
+    }
+
+    #endregion
 
     // Helper method to map KQL operators to CommonAST BinaryOperatorKind
     private BinaryOperatorKind MapKqlOperatorToCommonAST(string op)
